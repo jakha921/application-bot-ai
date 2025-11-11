@@ -1,5 +1,0 @@
-{
-  "name": "AI Agent Admin Panel",
-  "description": "A multi-bot, multi-user admin panel to manage, monitor, and interact with various AI agents. Built with React, TypeScript, Zustand, and Tailwind CSS.",
-  "requestFramePermissions": []
-}
