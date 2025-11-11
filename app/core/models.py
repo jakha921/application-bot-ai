@@ -244,6 +244,122 @@ class Document(models.Model):
         return f"Document {self.filename}"
 
 
+class Bot(models.Model):
+    """Telegram bot configuration"""
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        related_name='bots'
+    )
+    name = models.CharField(
+        max_length=100,
+        verbose_name='Bot Name',
+        help_text='Display name for the bot (3-100 characters)'
+    )
+    description = models.TextField(
+        max_length=500,
+        null=True,
+        blank=True,
+        verbose_name='Description',
+        help_text='Optional description of bot purpose'
+    )
+    telegram_token = models.CharField(
+        max_length=255,
+        verbose_name='Telegram Bot Token',
+        help_text='Bot token from @BotFather'
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Is Active',
+        help_text='Whether the bot is currently active'
+    )
+    
+    # Statistics
+    total_conversations = models.IntegerField(default=0)
+    total_documents = models.IntegerField(default=0)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'bots'
+        verbose_name = 'Bot'
+        verbose_name_plural = 'Bots'
+        ordering = ['-created_at']
+        unique_together = ['organization', 'telegram_token']
+        indexes = [
+            models.Index(fields=['organization', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.organization.name})"
+
+
+class Template(models.Model):
+    """Document template"""
+    CATEGORY_CHOICES = [
+        ('appeal', 'Appeal (Заявление)'),
+        ('complaint', 'Complaint (Жалоба)'),
+        ('request', 'Request (Ходатайство)'),
+        ('statement', 'Statement (Объяснение)'),
+        ('other', 'Other (Другое)'),
+    ]
+    
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        related_name='templates'
+    )
+    name = models.CharField(
+        max_length=200,
+        verbose_name='Template Name',
+        help_text='Template name (3-200 characters)'
+    )
+    description = models.TextField(
+        max_length=1000,
+        null=True,
+        blank=True,
+        verbose_name='Description',
+        help_text='Optional template description'
+    )
+    content = models.TextField(
+        verbose_name='Template Content',
+        help_text='Template content with placeholders (10-10000 characters)'
+    )
+    category = models.CharField(
+        max_length=50,
+        choices=CATEGORY_CHOICES,
+        default='appeal',
+        verbose_name='Category'
+    )
+    is_public = models.BooleanField(
+        default=False,
+        verbose_name='Is Public',
+        help_text='Share template with all organizations'
+    )
+    
+    # Usage statistics
+    usage_count = models.IntegerField(default=0)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'templates'
+        verbose_name = 'Template'
+        verbose_name_plural = 'Templates'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['organization', 'category']),
+            models.Index(fields=['is_public']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} - {self.category}"
+
+
 class Statistics(models.Model):
     """Daily statistics"""
     date = models.DateField(unique=True, db_index=True)

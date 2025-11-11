@@ -81,6 +81,10 @@ npm install
 npm run dev  # http://localhost:5173
 ```
 
+**Test Credentials:**
+- Email: `test@example.com`
+- Password: `testpass123`
+
 **Access:**
 - Frontend: http://localhost:5173
 - Backend API: http://127.0.0.1:8000/api
@@ -97,6 +101,13 @@ docker-compose exec app python manage.py migrate
 docker-compose exec app python manage.py createsuperuser
 docker-compose exec app python manage.py collectstatic
 ```
+
+## 📚 Документация
+
+- **[USER_GUIDE.md](USER_GUIDE.md)** - Полное руководство пользователя
+- **[QUICKSTART.md](QUICKSTART.md)** - Краткая справка
+- **[E2E_TEST_PLAN.md](E2E_TEST_PLAN.md)** - План тестирования
+- **[docs/](docs/)** - n8n Workflow (legacy)
 
 ## 📊 SaaS Plans
 

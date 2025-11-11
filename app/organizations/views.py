@@ -69,12 +69,32 @@ class APIKeyViewSet(viewsets.ModelViewSet):
             return APIKey.objects.filter(organization_id=org_id)
         return APIKey.objects.none()
     
-    def perform_create(self, serializer):
-        """Создание нового API ключа"""
-        org_id = self.request.headers.get('X-Organization-ID')
+    def create(self, request, *args, **kwargs):
+        """Создание нового API ключа с возвратом raw_key"""
+        org_id = request.headers.get('X-Organization-ID')
         if not org_id:
-            raise ValueError("Organization ID required")
+            return Response(
+                {'error': 'Organization ID required'},
+                status=400
+            )
         
-        org = Organization.objects.get(id=org_id)
-        key = APIKey.generate_key()
-        serializer.save(organization=org, key=key)
+        try:
+            org = Organization.objects.get(id=org_id)
+        except Organization.DoesNotExist:
+            return Response(
+                {'error': 'Organization not found'},
+                status=404
+            )
+        
+        # Создаем API ключ
+        api_key, raw_key = APIKey.generate_key(
+            organization=org,
+            name=request.data.get('name'),
+            permissions=request.data.get('permissions', {})
+        )
+        
+        # Сериализуем с raw_key
+        serializer = self.get_serializer(api_key)
+        serializer._raw_key = raw_key
+        
+        return Response(serializer.data, status=201)

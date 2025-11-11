@@ -7,8 +7,11 @@ export interface Organization {
   subscription_status: string;
   bots_quota: number;
   bots_used: number;
+  bots_count?: number; // Alias for API compatibility
   documents_quota: number;
   documents_used: number;
+  documents_count?: number; // Total documents
+  monthly_documents_count?: number; // Documents this month
   api_calls_quota: number;
   api_calls_used: number;
   created_at: string;

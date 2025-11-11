@@ -7,6 +7,7 @@ import secrets
 import hashlib
 from django.db import models
 from django.utils import timezone
+from django.utils.text import slugify
 from datetime import timedelta
 
 
@@ -33,7 +34,12 @@ class Organization(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, verbose_name='Organization Name')
-    slug = models.SlugField(max_length=100, unique=True, verbose_name='URL Slug')
+    slug = models.SlugField(
+        max_length=100,
+        unique=True,
+        blank=True,
+        verbose_name='URL Slug'
+    )
     
     # Plan & Subscription
     plan = models.CharField(
@@ -53,11 +59,23 @@ class Organization(models.Model):
     bots_quota = models.IntegerField(default=1, verbose_name='Bots Limit')
     bots_used = models.IntegerField(default=0, verbose_name='Bots Used')
     
-    documents_quota = models.IntegerField(default=10, verbose_name='Monthly Documents Limit')
-    documents_used = models.IntegerField(default=0, verbose_name='Documents Used This Month')
+    documents_quota = models.IntegerField(
+        default=10,
+        verbose_name='Monthly Documents Limit'
+    )
+    documents_used = models.IntegerField(
+        default=0,
+        verbose_name='Documents Used This Month'
+    )
     
-    api_calls_quota = models.IntegerField(default=0, verbose_name='Monthly API Calls Limit')
-    api_calls_used = models.IntegerField(default=0, verbose_name='API Calls Used This Month')
+    api_calls_quota = models.IntegerField(
+        default=0,
+        verbose_name='Monthly API Calls Limit'
+    )
+    api_calls_used = models.IntegerField(
+        default=0,
+        verbose_name='API Calls Used This Month'
+    )
     
     # Stripe integration
     stripe_customer_id = models.CharField(
@@ -101,6 +119,22 @@ class Organization(models.Model):
     
     def __str__(self):
         return f"{self.name} ({self.plan})"
+    
+    def save(self, *args, **kwargs):
+        """Auto-generate slug from name if not provided"""
+        if not self.slug:
+            base_slug = slugify(self.name)
+            slug = base_slug
+            counter = 1
+            
+            # Ensure unique slug
+            while Organization.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            
+            self.slug = slug
+        
+        super().save(*args, **kwargs)
     
     @property
     def is_trial(self):

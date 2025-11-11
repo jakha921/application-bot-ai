@@ -45,9 +45,18 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
 
 class APIKeySerializer(serializers.ModelSerializer):
-    key = serializers.CharField(read_only=True)
+    key = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = APIKey
-        fields = ['id', 'name', 'key', 'is_active', 'created_at', 'last_used_at']
-        read_only_fields = ['id', 'key', 'created_at', 'last_used_at']
+        fields = [
+            'id', 'name', 'prefix', 'key', 'permissions',
+            'is_active', 'created_at', 'last_used_at'
+        ]
+        read_only_fields = ['id', 'prefix', 'created_at', 'last_used_at']
+    
+    def get_key(self, obj):
+        """Показываем полный ключ только при создании"""
+        if hasattr(self, '_raw_key'):
+            return self._raw_key
+        return f"{obj.prefix}***"  # Скрываем ключ после создания
