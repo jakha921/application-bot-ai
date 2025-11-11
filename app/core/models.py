@@ -3,6 +3,7 @@ Core models for Ariza AI Bot
 """
 from django.db import models
 from django.utils import timezone
+from django.contrib.auth.models import User
 
 
 class RoleChoices(models.TextChoices):
@@ -11,6 +12,45 @@ class RoleChoices(models.TextChoices):
     ADMIN = 'admin', 'Admin'
     EDITOR = 'editor', 'Editor'
     VIEWER = 'viewer', 'Viewer'
+
+
+class UserProfile(models.Model):
+    """Profile linking Django User to Organization"""
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='profile'
+    )
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        related_name='user_profiles'
+    )
+    role = models.CharField(
+        max_length=50,
+        choices=RoleChoices.choices,
+        default=RoleChoices.VIEWER
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'user_profiles'
+        unique_together = ['user', 'organization']
+    
+    def has_permission(self, permission: str) -> bool:
+        """Check if user has a specific permission"""
+        permissions_map = {
+            'owner': ['manage_org', 'manage_users', 'manage_bots',
+                      'manage_templates', 'view_analytics'],
+            'admin': ['manage_users', 'manage_bots',
+                      'manage_templates', 'view_analytics'],
+            'editor': ['manage_bots', 'manage_templates'],
+            'viewer': ['view_analytics'],
+        }
+        return permission in permissions_map.get(self.role, [])
+    
+    def __str__(self):
+        return f"{self.user.email} - {self.organization.name} ({self.role})"
 
 
 class TelegramUser(models.Model):

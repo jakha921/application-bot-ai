@@ -1,93 +1,110 @@
-# 🤖 Ariza AI Bot
+# 🤖 Ariza AI SaaS Platform
 
-> Умный Telegram бот для автоматической генерации юридических заявлений (ариза) для граждан Узбекистана с использованием искусственного интеллекта.
+> Multi-tenant SaaS platform for creating AI-powered Telegram bots that generate legal documents (заявления/ariza) for Uzbekistan citizens.
 
-[![Django](https://img.shields.io/badge/Django-5.0-green.svg)](https://www.djangoproject.com/)
-[![aiogram](https://img.shields.io/badge/aiogram-3.13-blue.svg)](https://docs.aiogram.dev/)
+[![Django](https://img.shields.io/badge/Django-4.2-green.svg)](https://www.djangoproject.com/)
+[![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## 📋 О проекте
 
-Ariza AI Bot помогает гражданам Узбекистана создавать официальные заявления (ариза) с помощью:
-- 🎤 **Голосового ввода** на узбекском языке
-- 🤖 **AI-ассистента** для сбора информации
-- 📄 **Автоматической генерации** Word документов
+Full-stack SaaS платформа для управления множественными AI ботами:
+- 🏢 **Multi-tenant архитектура** с поддержкой организаций
+- 🤖 **Множественные боты** на одном сервере
+- 🎤 **Голосовой ввод** на узбекском языке (Whisper/Gemini)
+- 🤖 **AI-диалоги** (GPT/Gemini)
+- 📄 **Генерация документов** в Word формате
+- � **Stripe биллинг** с подписками
+- 📊 **Analytics dashboard**
+- 🛍️ **Template marketplace**
 
 ## 🎯 Возможности
 
-✅ Распознавание речи (Whisper/Gemini)  
-✅ Интеллектуальный диалог (GPT/Gemini)  
-✅ Генерация Word документов  
-✅ Веб-админ панель  
-✅ История диалогов (PostgreSQL)  
-✅ Статистика использования  
-✅ Docker развертывание  
+### Backend (Django + DRF)
+✅ Multi-tenant organizations  
+✅ RBAC (owner/admin/editor/viewer)  
+✅ REST API с аутентификацией  
+✅ PostgreSQL + Redis  
+✅ Stripe интеграция  
+✅ API key management  
+✅ Bot management per organization  
+✅ Template marketplace  
+
+### Frontend (React + TypeScript)
+✅ Modern React 18 + TypeScript  
+✅ Tailwind CSS v4  
+✅ TanStack Query + Zustand  
+✅ Organization switcher  
+✅ Protected routes  
+✅ Dark mode support  
 
 ## 🏗️ Архитектура
 
-Проект содержит две реализации:
-
-### 1. Django Application (Production) ⭐
-**Рекомендуется для продакшена**
-
 ```
-📁 app/
-   ├── Django backend
-   ├── aiogram 3.x bot
-   ├── PostgreSQL database
-   ├── Redis FSM storage
-   └── Admin panel
-```
-
-**Стек**: Django + aiogram + PostgreSQL + Redis + Docker
-
-👉 **[Быстрый старт](app/QUICKSTART.md)** | **[Полная документация](app/README.md)**
-
-### 2. n8n Workflow (Prototype)
-**Для экспериментов и прототипирования**
-
-```
-📁 docs/
-   ├── n8n workflow JSON
-   ├── Flask API server
-   └── Setup guides
+Project/
+├── app/                # Django Backend
+│   ├── organizations/  # Multi-tenant core
+│   ├── core/          # User models
+│   ├── bot/           # Telegram bot
+│   ├── documents/     # Word generation
+│   └── api/           # REST endpoints
+│
+├── frontend/          # React Frontend
+│   ├── src/
+│   │   ├── pages/     # Dashboard, Bots, Templates
+│   │   ├── stores/    # Auth & Org state
+│   │   ├── lib/       # API client
+│   │   └── types/     # TypeScript types
+│
+└── docs/             # n8n Workflow (Legacy)
 ```
 
-**Стек**: n8n + Flask + OpenAI + Anthropic Claude
+## 🚀 Quick Start
 
-👉 **[n8n Guide](docs/N8n Telegram Voice Workflow Guide.md)** | **[Checklist](docs/N8n Telegram Voice Workflow Checklist.md)**
+### Development Setup
 
-## 🚀 Быстрый старт
+**Backend (Django):**
+```bash
+cd app
+cp .env.example .env  # Configure API keys, DB, etc.
+uv sync                # Install dependencies
+uv run python manage.py migrate
+uv run python manage.py createsuperuser
+uv run python manage.py runserver  # http://127.0.0.1:8000
+```
 
-### Вариант 1: Django App (Docker)
+**Frontend (React):**
+```bash
+cd frontend
+npm install
+npm run dev  # http://localhost:5173
+```
+
+**Access:**
+- Frontend: http://localhost:5173
+- Backend API: http://127.0.0.1:8000/api
+- Django Admin: http://127.0.0.1:8000/admin
+
+### Production Deployment
 
 ```bash
 cd app
 cp .env.example .env
-# Отредактируйте .env - добавьте API ключи
+# Edit .env with production settings
 docker-compose up -d
 docker-compose exec app python manage.py migrate
 docker-compose exec app python manage.py createsuperuser
+docker-compose exec app python manage.py collectstatic
 ```
 
-Готово! Бот работает в polling режиме.
+## 📊 SaaS Plans
 
-### Вариант 2: n8n Workflow
-
-```bash
-# См. подробную инструкцию
-docs/N8n Telegram Voice Workflow Checklist.md
-```
-
-## 📊 Сравнение реализаций
-
-| Функция | Django App | n8n Workflow |
-|---------|-----------|--------------|
-| **Сложность настройки** | Средняя | Простая |
-| **Production ready** | ✅ Да | ⚠️ Прототип |
-| **База данных** | PostgreSQL | n8n internal |
-| **Админ панель** | ✅ Django Admin | ⚠️ n8n UI |
-| **Статистика** | ✅ Полная | ❌ Нет |
+| Plan | Bots | Docs/month | Price |
+|------|------|-----------|-------|
+| **Free** | 1 | 10 | $0 |
+| **Pro** | 5 | 500 | $29/mo |
+| **Enterprise** | Unlimited | Unlimited | Custom |
 | **Масштабируемость** | ✅ Высокая | ⚠️ Средняя |
 | **AI провайдеры** | OpenAI/Gemini | OpenAI/Claude |
 | **Webhook поддержка** | ✅ Да | ✅ Да |
