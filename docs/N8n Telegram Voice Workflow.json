@@ -1,0 +1,357 @@
+{
+  "name": "Telegram Ariza Bot - Advanced (with Dialog & Word Formatting)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"]
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Инициализация хранилища для диалогов\nconst chatId = $input.item.json.message.chat.id;\nconst userId = $input.item.json.message.from.id;\n\n// Получаем историю диалога из Static Data (или создаем новую)\nconst storageKey = `conversation_${userId}`;\nlet conversationHistory = [];\n\ntry {\n  // Пытаемся получить существующую историю\n  const stored = $execution.customData.get(storageKey);\n  if (stored) {\n    conversationHistory = JSON.parse(stored);\n  }\n} catch (e) {\n  // Если нет истории - начинаем новую\n  conversationHistory = [];\n}\n\n// Определяем тип сообщения\nconst messageType = $input.item.json.message.voice ? 'voice' : 'text';\nconst messageContent = messageType === 'text' \n  ? $input.item.json.message.text \n  : null;\n\nreturn {\n  chatId,\n  userId,\n  messageType,\n  messageContent,\n  conversationHistory: JSON.stringify(conversationHistory),\n  storageKey,\n  userName: $input.item.json.message.from.first_name || 'Пользователь'\n};"
+      },
+      "id": "init-dialog",
+      "name": "Инициализация диалога",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.messageType}}",
+              "rightValue": "voice",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "check-message-type",
+      "name": "Тип: Голос или Текст?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json.chatId}}",
+        "text": "🎤 Обрабатываю голосовое сообщение...",
+        "additionalFields": {}
+      },
+      "id": "msg-processing-voice",
+      "name": "Сообщение: Обработка",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{$credentials.telegramApi.accessToken}}/getFile",
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\"file_id\": \"{{$('Telegram Trigger').item.json.message.voice.file_id}}\"}",
+        "options": {}
+      },
+      "id": "get-voice-file",
+      "name": "Получить голосовой файл",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.telegram.org/file/bot{{$credentials.telegramApi.accessToken}}/{{$json.result.file_path}}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "audioFile"
+            }
+          }
+        }
+      },
+      "id": "download-voice",
+      "name": "Скачать голосовое",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$credentials.openAiApi.apiKey}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file",
+              "inputDataFieldName": "audioFile"
+            },
+            {
+              "name": "model",
+              "value": "whisper-1"
+            },
+            {
+              "name": "language",
+              "value": "uz"
+            },
+            {
+              "name": "prompt",
+              "value": "Это заявление на узбекском языке для государственных органов Узбекистана. Транскрибируйте на кириллице."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "whisper-transcribe",
+      "name": "Whisper: Транскрипция",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Получаем транскрибированный текст или прямой текст\nconst userMessage = $input.item.json.text || $('Инициализация диалога').item.json.messageContent;\n\n// Получаем историю диалога\nconst historyStr = $('Инициализация диалога').item.json.conversationHistory;\nlet history = JSON.parse(historyStr);\n\n// Добавляем новое сообщение пользователя\nhistory.push({\n  role: 'user',\n  content: userMessage\n});\n\nreturn {\n  userMessage,\n  conversationHistory: history,\n  chatId: $('Инициализация диалога').item.json.chatId,\n  userId: $('Инициализация диалога').item.json.userId,\n  storageKey: $('Инициализация диалога').item.json.storageKey\n};"
+      },
+      "id": "update-history",
+      "name": "Обновить историю",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$credentials.anthropicApi.apiKey}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4096,\n  \"system\": \"# Руководство для Помощника по Заявлениям\\n\\nВы — эксперт по составлению официальных заявлений (ариза) для Узбекистана.\\n\\n**ВАЖНО**: Вы ведете диалог с пользователем. НЕ ДАВАЙТЕ шаблон сразу!\\n\\n## Ваш процесс:\\n\\n1. **Сначала соберите информацию** - задайте уточняющие вопросы:\\n   - Кимга мурожаат қиляпсиз? (Организация, должность, ФИО)\\n   - Ким томонидан? (Ваши ФИО, адрес, телефон)\\n   - Мақсад нима? (Что просите?)\\n   - Тафсилотлар? (Даты, номера, детали)\\n\\n2. **Проверьте lex.uz** - используйте web_search с 'site:lex.uz' для поиска:\\n   - Утвержденных форм\\n   - Требований к документам\\n   - Процедур и сроков\\n\\n3. **Составьте документ** только после того, как получили ВСЕ данные:\\n   ```\\n   [Кимга]\\n   [Кимдан]\\n   \\n                    А Р И З А\\n   \\n   Сиздан [мақсад] сўрайман...\\n   [Тафсилотлар]\\n   \\n   Илова: [если есть]\\n   \\n   [Сана]                                    [Имзо]\\n   ```\\n\\n4. **Сигнал готовности**: Когда документ готов, добавьте в конец:\\n   `[DOCUMENT_READY]`\\n\\n**Тон**: Вежливо, официально. Только узбекский (кириллица).\\n**Запрещено**: Юридические консультации, придумывание фактов.\",\n  \"messages\": {{$json.conversationHistory}}\n}",
+        "options": {}
+      },
+      "id": "claude-dialog",
+      "name": "Claude: Диалог",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 400]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Получаем ответ Claude\nconst claudeResponse = $input.item.json.content[0].text;\n\n// Обновляем историю\nlet history = $('Обновить историю').item.json.conversationHistory;\nhistory.push({\n  role: 'assistant',\n  content: claudeResponse\n});\n\n// Сохраняем историю\nconst storageKey = $('Обновить историю').item.json.storageKey;\n$execution.customData.set(storageKey, JSON.stringify(history));\n\n// Проверяем, готов ли документ\nconst isDocumentReady = claudeResponse.includes('[DOCUMENT_READY]');\nconst cleanResponse = claudeResponse.replace('[DOCUMENT_READY]', '').trim();\n\nreturn {\n  response: cleanResponse,\n  isDocumentReady,\n  chatId: $('Обновить историю').item.json.chatId,\n  fullHistory: history\n};"
+      },
+      "id": "process-response",
+      "name": "Обработать ответ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.isDocumentReady}}",
+              "value2": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "check-ready",
+      "name": "Документ готов?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2440, 400]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json.chatId}}",
+        "text": "={{$json.response}}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-dialog-message",
+      "name": "Отправить сообщение",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2660, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json.chatId}}",
+        "text": "📄 Отлично! Сейчас создаю Word документ...",
+        "additionalFields": {}
+      },
+      "id": "msg-creating-doc",
+      "name": "Сообщение: Создание",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2660, 500]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Функция для генерации Word документа с правильным форматированием\nconst PizZip = require('pizzip');\nconst Docxtemplater = require('docxtemplater');\nconst fs = require('fs');\n\n// Получаем текст документа\nconst documentText = $input.item.json.response;\n\n// Парсим структуру заявления\nconst lines = documentText.split('\\n');\nlet header = [];\nlet title = '';\nlet body = [];\nlet appendix = [];\nlet footer = [];\n\nlet section = 'header';\n\nfor (let line of lines) {\n  const trimmed = line.trim();\n  \n  if (trimmed.includes('А Р И З А') || trimmed.includes('АРИЗА')) {\n    title = trimmed;\n    section = 'body';\n    continue;\n  }\n  \n  if (trimmed.startsWith('Илова:')) {\n    section = 'appendix';\n  }\n  \n  if (section === 'header') {\n    if (trimmed) header.push(trimmed);\n  } else if (section === 'body') {\n    if (trimmed) body.push(trimmed);\n  } else if (section === 'appendix') {\n    if (trimmed) appendix.push(trimmed);\n  }\n}\n\n// Простое форматирование в docx-подобный формат\nconst formatted = {\n  header: header.join('\\n'),\n  title: title,\n  body: body.join('\\n\\n'),\n  appendix: appendix.join('\\n'),\n  timestamp: new Date().toISOString().split('T')[0]\n};\n\n// Генерируем имя файла\nconst filename = `ariza_${Date.now()}.docx`;\n\nreturn {\n  documentData: formatted,\n  documentText: documentText,\n  filename: filename,\n  chatId: $input.item.json.chatId\n};"
+      },
+      "id": "create-word-doc",
+      "name": "Создать Word",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2880, 500]
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "fileContent": "={{$json.documentText}}",
+        "options": {
+          "fileName": "={{$json.filename}}",
+          "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        }
+      },
+      "id": "convert-to-file",
+      "name": "Конвертировать в файл",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [3100, 500]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$('Создать Word').item.json.chatId}}",
+        "text": "✅ Ваше заявление готово!\\n\\n⚠️ Важно: Проверьте все данные перед подписанием.\\n\\n💡 Рекомендация: Подавайте в 2 экземплярах, один с отметкой оставьте себе.",
+        "additionalFields": {
+          "document": "data",
+          "file_name": "={{$('Создать Word').item.json.filename}}"
+        }
+      },
+      "id": "send-document",
+      "name": "Отправить документ",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [3320, 500]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$('Инициализация диалога').item.json.chatId}}",
+        "text": "={{$('Инициализация диалога').item.json.messageContent}}",
+        "additionalFields": {}
+      },
+      "id": "process-text-input",
+      "name": "Обработать текст",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [900, 500]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [[{"node": "Инициализация диалога", "type": "main", "index": 0}]]
+    },
+    "Инициализация диалога": {
+      "main": [[{"node": "Тип: Голос или Текст?", "type": "main", "index": 0}]]
+    },
+    "Тип: Голос или Текст?": {
+      "main": [
+        [{"node": "Сообщение: Обработка", "type": "main", "index": 0}],
+        [{"node": "Обработать текст", "type": "main", "index": 0}]
+      ]
+    },
+    "Сообщение: Обработка": {
+      "main": [[{"node": "Получить голосовой файл", "type": "main", "index": 0}]]
+    },
+    "Получить голосовой файл": {
+      "main": [[{"node": "Скачать голосовое", "type": "main", "index": 0}]]
+    },
+    "Скачать голосовое": {
+      "main": [[{"node": "Whisper: Транскрипция", "type": "main", "index": 0}]]
+    },
+    "Whisper: Транскрипция": {
+      "main": [[{"node": "Обновить историю", "type": "main", "index": 0}]]
+    },
+    "Обработать текст": {
+      "main": [[{"node": "Обновить историю", "type": "main", "index": 0}]]
+    },
+    "Обновить историю": {
+      "main": [[{"node": "Claude: Диалог", "type": "main", "index": 0}]]
+    },
+    "Claude: Диалог": {
+      "main": [[{"node": "Обработать ответ", "type": "main", "index": 0}]]
+    },
+    "Обработать ответ": {
+      "main": [[{"node": "Документ готов?", "type": "main", "index": 0}]]
+    },
+    "Документ готов?": {
+      "main": [
+        [{"node": "Сообщение: Создание", "type": "main", "index": 0}],
+        [{"node": "Отправить сообщение", "type": "main", "index": 0}]
+      ]
+    },
+    "Сообщение: Создание": {
+      "main": [[{"node": "Создать Word", "type": "main", "index": 0}]]
+    },
+    "Создать Word": {
+      "main": [[{"node": "Конвертировать в файл", "type": "main", "index": 0}]]
+    },
+    "Конвертировать в файл": {
+      "main": [[{"node": "Отправить документ", "type": "main", "index": 0}]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

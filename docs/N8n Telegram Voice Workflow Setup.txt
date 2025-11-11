@@ -1,0 +1,390 @@
+# docker-compose.yml
+# Полная система Telegram Bot для заявлений (Uzbekistan)
+# Запуск: docker-compose up -d
+
+version: '3.8'
+
+services:
+  # Flask API для генерации Word документов
+  flask-api:
+    build:
+      context: ./flask-api
+      dockerfile: Dockerfile
+    container_name: ariza-flask-api
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - DEBUG=False
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./flask-api:/app
+      - ./temp_documents:/tmp/documents
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - ariza-network
+
+  # n8n Workflow Engine
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: ariza-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=changeme123  # ИЗМЕНИТЕ ЭТО!
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Asia/Tashkent
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n-workflows:/home/node/.n8n/workflows
+    restart: unless-stopped
+    depends_on:
+      - flask-api
+    networks:
+      - ariza-network
+
+  # Redis для хранения сессий (опционально)
+  redis:
+    image: redis:7-alpine
+    container_name: ariza-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - ariza-network
+
+  # Nginx Reverse Proxy (для продакшена)
+  nginx:
+    image: nginx:alpine
+    container_name: ariza-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - flask-api
+      - n8n
+    restart: unless-stopped
+    networks:
+      - ariza-network
+
+volumes:
+  n8n_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  ariza-network:
+    driver: bridge
+
+---
+
+# Dockerfile для Flask API
+# Путь: ./flask-api/Dockerfile
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Установка системных зависимостей
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копирование requirements
+COPY requirements.txt .
+
+# Установка Python зависимостей
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копирование кода
+COPY . .
+
+# Открываем порт
+EXPOSE 5000
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:5000/health || exit 1
+
+# Запуск приложения
+CMD ["python", "flask_api_server.py"]
+
+---
+
+# requirements.txt для Flask API
+# Путь: ./flask-api/requirements.txt
+
+flask==3.0.0
+flask-cors==4.0.0
+python-docx==1.1.0
+gunicorn==21.2.0
+redis==5.0.1
+
+---
+
+# Конфигурация Nginx
+# Путь: ./nginx/nginx.conf
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    upstream flask_backend {
+        server flask-api:5000;
+    }
+
+    upstream n8n_backend {
+        server n8n:5678;
+    }
+
+    # Flask API
+    server {
+        listen 80;
+        server_name api.yourdomain.com;  # ИЗМЕНИТЕ НА ВАШ ДОМЕН
+
+        location / {
+            proxy_pass http://flask_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # Увеличиваем таймауты для генерации документов
+            proxy_read_timeout 300;
+            proxy_connect_timeout 300;
+        }
+    }
+
+    # n8n Web Interface
+    server {
+        listen 80;
+        server_name n8n.yourdomain.com;  # ИЗМЕНИТЕ НА ВАШ ДОМЕН
+
+        location / {
+            proxy_pass http://n8n_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # WebSocket support для n8n
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+    }
+}
+
+---
+
+# .env файл с секретами
+# Путь: ./.env
+# ВАЖНО: Добавьте этот файл в .gitignore!
+
+# Telegram Bot
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+
+# OpenAI
+OPENAI_API_KEY=sk-proj-your_key_here
+
+# Anthropic Claude
+ANTHROPIC_API_KEY=sk-ant-api03-your_key_here
+
+# n8n Admin
+N8N_BASIC_AUTH_USER=admin
+N8N_BASIC_AUTH_PASSWORD=your_secure_password_here
+
+# Flask
+FLASK_SECRET_KEY=your_flask_secret_key_here
+FLASK_DEBUG=False
+
+---
+
+# Скрипт для быстрого запуска
+# Путь: ./start.sh
+# Использование: chmod +x start.sh && ./start.sh
+
+#!/bin/bash
+
+echo "🚀 Запуск Telegram Ariza Bot System..."
+
+# Проверка .env файла
+if [ ! -f .env ]; then
+    echo "❌ Ошибка: Файл .env не найден!"
+    echo "Создайте .env файл со всеми необходимыми ключами."
+    exit 1
+fi
+
+# Создание необходимых директорий
+mkdir -p flask-api
+mkdir -p nginx/ssl
+mkdir -p nginx/logs
+mkdir -p n8n-workflows
+mkdir -p temp_documents
+
+# Проверка Docker
+if ! command -v docker &> /dev/null; then
+    echo "❌ Docker не установлен!"
+    echo "Установите Docker: https://docs.docker.com/get-docker/"
+    exit 1
+fi
+
+# Проверка Docker Compose
+if ! command -v docker-compose &> /dev/null; then
+    echo "❌ Docker Compose не установлен!"
+    echo "Установите Docker Compose: https://docs.docker.com/compose/install/"
+    exit 1
+fi
+
+# Остановка старых контейнеров
+echo "🛑 Остановка существующих контейнеров..."
+docker-compose down
+
+# Сборка и запуск
+echo "🔨 Сборка образов..."
+docker-compose build
+
+echo "▶️  Запуск сервисов..."
+docker-compose up -d
+
+# Проверка статуса
+echo ""
+echo "⏳ Ожидание запуска сервисов..."
+sleep 10
+
+echo ""
+echo "✅ Проверка статуса сервисов:"
+docker-compose ps
+
+echo ""
+echo "🎉 Система запущена!"
+echo ""
+echo "📋 Доступные сервисы:"
+echo "   - Flask API:  http://localhost:5000"
+echo "   - n8n:        http://localhost:5678 (admin / changeme123)"
+echo "   - Redis:      localhost:6379"
+echo ""
+echo "📝 Следующие шаги:"
+echo "   1. Откройте http://localhost:5678"
+echo "   2. Войдите (admin / changeme123)"
+echo "   3. Импортируйте workflow"
+echo "   4. Настройте credentials"
+echo "   5. Активируйте workflow"
+echo ""
+echo "📊 Логи:"
+echo "   docker-compose logs -f flask-api"
+echo "   docker-compose logs -f n8n"
+echo ""
+echo "🛑 Остановка:"
+echo "   docker-compose down"
+
+---
+
+# Скрипт для проверки здоровья системы
+# Путь: ./health_check.sh
+
+#!/bin/bash
+
+echo "🏥 Проверка здоровья системы..."
+echo ""
+
+# Flask API
+echo "1️⃣ Flask API:"
+if curl -s http://localhost:5000/health > /dev/null; then
+    echo "   ✅ Flask API работает"
+    curl -s http://localhost:5000/health | jq
+else
+    echo "   ❌ Flask API не отвечает"
+fi
+
+echo ""
+
+# n8n
+echo "2️⃣ n8n:"
+if curl -s http://localhost:5678 > /dev/null; then
+    echo "   ✅ n8n работает"
+else
+    echo "   ❌ n8n не отвечает"
+fi
+
+echo ""
+
+# Redis
+echo "3️⃣ Redis:"
+if docker exec ariza-redis redis-cli ping > /dev/null 2>&1; then
+    echo "   ✅ Redis работает"
+else
+    echo "   ❌ Redis не отвечает"
+fi
+
+echo ""
+
+# Docker контейнеры
+echo "4️⃣ Статус контейнеров:"
+docker-compose ps
+
+echo ""
+echo "✅ Проверка завершена!"
+
+---
+
+# .gitignore
+# Путь: ./.gitignore
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Docker volumes
+docker-compose.override.yml
+
+# Logs
+*.log
+nginx/logs/*.log
+
+# Temporary files
+temp_documents/
+*.tmp
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# n8n
+n8n_data/
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
