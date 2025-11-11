@@ -6,6 +6,11 @@ User = get_user_model()
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
+    # Вычисляемые поля
+    bots_count = serializers.SerializerMethodField()
+    documents_count = serializers.SerializerMethodField()
+    monthly_documents_count = serializers.SerializerMethodField()
+    
     class Meta:
         model = Organization
         fields = [
@@ -14,6 +19,18 @@ class OrganizationSerializer(serializers.ModelSerializer):
             'stripe_customer_id', 'stripe_subscription_id'
         ]
         read_only_fields = ['id', 'slug', 'created_at', 'updated_at']
+    
+    def get_bots_count(self, obj):
+        """Возвращает количество ботов"""
+        return getattr(obj, 'bots_count', 0)
+    
+    def get_documents_count(self, obj):
+        """Возвращает общее количество документов"""
+        return getattr(obj, 'documents_count', 0)
+    
+    def get_monthly_documents_count(self, obj):
+        """Возвращает количество документов за месяц"""
+        return getattr(obj, 'monthly_documents_count', 0)
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
