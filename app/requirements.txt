@@ -3,6 +3,11 @@ Django==4.2
 psycopg2-binary==2.9.9
 environs==11.0.0
 
+# Django REST Framework
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+django-filter==23.5
+
 # Telegram Bot
 aiogram==3.13.1
 
@@ -15,6 +20,12 @@ python-docx==1.1.2
 
 # Redis
 redis==5.2.0
+
+# Billing
+stripe==7.9.0
+
+# Task Queue
+celery==5.3.6
 
 # Web Server
 gunicorn==23.0.0

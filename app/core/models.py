@@ -5,15 +5,45 @@ from django.db import models
 from django.utils import timezone
 
 
+class RoleChoices(models.TextChoices):
+    """User roles within an organization"""
+    OWNER = 'owner', 'Owner'
+    ADMIN = 'admin', 'Admin'
+    EDITOR = 'editor', 'Editor'
+    VIEWER = 'viewer', 'Viewer'
+
+
 class TelegramUser(models.Model):
-    """Telegram user model"""
+    """Telegram user model with multi-tenant support"""
+    # Organization relationship
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        related_name='telegram_users',
+        null=True,  # Temporary for migration
+        blank=True
+    )
+    
+    # Role in organization
+    role = models.CharField(
+        max_length=50,
+        choices=RoleChoices.choices,
+        default=RoleChoices.VIEWER,
+        verbose_name='User Role'
+    )
+    
+    # Telegram details
     telegram_id = models.BigIntegerField(unique=True, db_index=True)
     username = models.CharField(max_length=255, null=True, blank=True)
     first_name = models.CharField(max_length=255, null=True, blank=True)
     last_name = models.CharField(max_length=255, null=True, blank=True)
     language_code = models.CharField(max_length=10, null=True, blank=True)
+    
+    # Status
     is_active = models.BooleanField(default=True)
     is_blocked = models.BooleanField(default=False)
+    
+    # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -22,14 +52,37 @@ class TelegramUser(models.Model):
         verbose_name = 'Telegram User'
         verbose_name_plural = 'Telegram Users'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['organization', 'is_active']),
+        ]
     
     def __str__(self):
-        return f"{self.first_name or ''} {self.last_name or ''} (@{self.username})"
+        org_name = self.organization.name if self.organization else 'No Org'
+        return f"{self.full_name} (@{self.username}) - {org_name}"
     
     @property
     def full_name(self):
         """Get user's full name"""
         return f"{self.first_name or ''} {self.last_name or ''}".strip()
+    
+    def has_permission(self, action: str) -> bool:
+        """Check if user has permission for action"""
+        permissions = {
+            RoleChoices.OWNER: ['*'],  # All permissions
+            RoleChoices.ADMIN: [
+                'manage_bots', 'manage_users', 'view_analytics',
+                'generate_document', 'manage_templates'
+            ],
+            RoleChoices.EDITOR: [
+                'generate_document', 'view_templates'
+            ],
+            RoleChoices.VIEWER: [
+                'view_documents', 'view_templates'
+            ],
+        }
+        
+        role_perms = permissions.get(self.role, [])
+        return '*' in role_perms or action in role_perms
 
 
 class Conversation(models.Model):
@@ -39,6 +92,15 @@ class Conversation(models.Model):
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
     ]
+    
+    # Organization relationship (for multi-tenancy)
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        related_name='conversations',
+        null=True,  # Temporary for migration
+        blank=True
+    )
     
     user = models.ForeignKey(
         TelegramUser,
@@ -113,6 +175,15 @@ class Message(models.Model):
 
 class Document(models.Model):
     """Generated document"""
+    # Organization relationship (for multi-tenancy)
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        related_name='documents',
+        null=True,  # Temporary for migration
+        blank=True
+    )
+    
     conversation = models.ForeignKey(
         Conversation,
         on_delete=models.CASCADE,

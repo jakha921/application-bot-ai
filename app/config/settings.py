@@ -28,7 +28,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     
+    # Third-party apps
+    'rest_framework',
+    'corsheaders',
+    
     # Local apps
+    'organizations.apps.OrganizationsConfig',
     'core.apps.CoreConfig',
     'bot.apps.BotConfig',
     'documents.apps.DocumentsConfig',
@@ -37,11 +42,15 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    
+    # Custom middleware
+    'organizations.middleware.TenantMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -177,3 +186,78 @@ LOGGING = {
 
 # Create logs directory
 os.makedirs(BASE_DIR / 'logs', exist_ok=True)
+
+
+# ============================================================================
+# REST FRAMEWORK SETTINGS
+# ============================================================================
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,
+    'DEFAULT_FILTER_BACKENDS': [
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+}
+
+# ============================================================================
+# CORS SETTINGS
+# ============================================================================
+
+CORS_ALLOWED_ORIGINS = env.list(
+    'CORS_ALLOWED_ORIGINS',
+    [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+    ]
+)
+
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-organization-id',  # Custom header for multi-tenancy
+]
+
+# ============================================================================
+# STRIPE SETTINGS
+# ============================================================================
+
+STRIPE_SECRET_KEY = env.str('STRIPE_SECRET_KEY', '')
+STRIPE_PUBLISHABLE_KEY = env.str('STRIPE_PUBLISHABLE_KEY', '')
+STRIPE_WEBHOOK_SECRET = env.str('STRIPE_WEBHOOK_SECRET', '')
+
+# Stripe Price IDs for plans
+STRIPE_PRICES = {
+    'pro_monthly': env.str('STRIPE_PRICE_PRO_MONTHLY', ''),
+    'pro_yearly': env.str('STRIPE_PRICE_PRO_YEARLY', ''),
+    'enterprise_monthly': env.str('STRIPE_PRICE_ENTERPRISE_MONTHLY', ''),
+    'enterprise_yearly': env.str('STRIPE_PRICE_ENTERPRISE_YEARLY', ''),
+}
+
+# ============================================================================
+# FRONTEND URL
+# ============================================================================
+
+FRONTEND_URL = env.str('FRONTEND_URL', 'http://localhost:3000')
