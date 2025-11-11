@@ -19,12 +19,46 @@ export const botSchema = z.object({
       'Неверный формат токена. Должен быть в формате: 123456789:ABCdefGHIjklMNOpqrSTUvwxyz'
     ),
   
+  system_prompt: z.string()
+    .max(5000, 'Инструкция не должна превышать 5000 символов')
+    .optional()
+    .or(z.literal('')),
+  
+  bot_type: z.enum(['chatbot', 'assistant', 'custom'], {
+    message: 'Выберите тип бота',
+  }).default('chatbot'),
+  
   is_active: z.boolean().optional().default(true),
 });
 
 export type BotFormData = z.infer<typeof botSchema>;
 
-// Template validation schema
+// KnowledgeBaseFile validation schema
+export const knowledgeBaseFileSchema = z.object({
+  bot: z.number({
+    required_error: 'Выберите бота',
+    invalid_type_error: 'Выберите бота из списка',
+  }),
+  
+  name: z.string()
+    .min(1, 'Название обязательно')
+    .min(3, 'Название должно содержать минимум 3 символа')
+    .max(200, 'Название не должно превышать 200 символов'),
+  
+  content: z.string()
+    .optional()
+    .or(z.literal('')),
+  
+  file_type: z.enum(['text', 'pdf', 'docx', 'url'], {
+    message: 'Выберите тип файла',
+  }).default('text'),
+  
+  file: z.instanceof(File).optional().nullable(),
+});
+
+export type KnowledgeBaseFileFormData = z.infer<typeof knowledgeBaseFileSchema>;
+
+// Template validation schema (DEPRECATED - kept for backward compatibility)
 export const templateSchema = z.object({
   name: z.string()
     .min(1, 'Название обязательно')

@@ -1,6 +1,7 @@
 """
-Core models for Ariza AI Bot
+Core models for Bot Factory Platform
 """
+import uuid
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import User
@@ -51,6 +52,53 @@ class UserProfile(models.Model):
     
     def __str__(self):
         return f"{self.user.email} - {self.organization.name} ({self.role})"
+
+
+class OrganizationInvite(models.Model):
+    """Invitation for users to join organizations"""
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        related_name='invites'
+    )
+    email = models.EmailField(verbose_name='Email Address')
+    role = models.CharField(
+        max_length=50,
+        choices=RoleChoices.choices,
+        default=RoleChoices.VIEWER,
+        verbose_name='Role'
+    )
+    token = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
+        verbose_name='Invite Token'
+    )
+    is_accepted = models.BooleanField(
+        default=False,
+        verbose_name='Is Accepted'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Expiration Date'
+    )
+    
+    class Meta:
+        db_table = 'organization_invites'
+        verbose_name = 'Organization Invite'
+        verbose_name_plural = 'Organization Invites'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Invite for {self.email} to {self.organization.name}"
+    
+    def is_expired(self):
+        """Check if invite is expired"""
+        if self.expires_at:
+            return timezone.now() > self.expires_at
+        return False
 
 
 class TelegramUser(models.Model):
@@ -152,8 +200,6 @@ class Conversation(models.Model):
         choices=STATUS_CHOICES,
         default='active'
     )
-    document_type = models.CharField(max_length=100, null=True, blank=True)
-    is_document_ready = models.BooleanField(default=False)
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     
@@ -213,39 +259,14 @@ class Message(models.Model):
         return f"{self.role}: {self.content[:50]}..."
 
 
-class Document(models.Model):
-    """Generated document"""
-    # Organization relationship (for multi-tenancy)
-    organization = models.ForeignKey(
-        'organizations.Organization',
-        on_delete=models.CASCADE,
-        related_name='documents',
-        null=True,  # Temporary for migration
-        blank=True
-    )
-    
-    conversation = models.ForeignKey(
-        Conversation,
-        on_delete=models.CASCADE,
-        related_name='documents'
-    )
-    filename = models.CharField(max_length=255)
-    file = models.FileField(upload_to='documents/%Y/%m/%d/')
-    document_text = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'documents'
-        verbose_name = 'Document'
-        verbose_name_plural = 'Documents'
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"Document {self.filename}"
-
-
 class Bot(models.Model):
-    """Telegram bot configuration"""
+    """AI Bot configuration for multi-purpose chatbots"""
+    BOT_TYPE_CHOICES = [
+        ('chatbot', 'Chatbot'),
+        ('assistant', 'Assistant'),
+        ('custom', 'Custom'),
+    ]
+    
     organization = models.ForeignKey(
         'organizations.Organization',
         on_delete=models.CASCADE,
@@ -268,15 +289,24 @@ class Bot(models.Model):
         verbose_name='Telegram Bot Token',
         help_text='Bot token from @BotFather'
     )
+    system_prompt = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name='System Prompt',
+        help_text='Main instructions/role for the bot (e.g., "You are a sales assistant...")'
+    )
+    bot_type = models.CharField(
+        max_length=50,
+        choices=BOT_TYPE_CHOICES,
+        default='chatbot',
+        verbose_name='Bot Type',
+        help_text='Type of bot functionality'
+    )
     is_active = models.BooleanField(
         default=True,
         verbose_name='Is Active',
         help_text='Whether the bot is currently active'
     )
-    
-    # Statistics
-    total_conversations = models.IntegerField(default=0)
-    total_documents = models.IntegerField(default=0)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -296,68 +326,106 @@ class Bot(models.Model):
         return f"{self.name} ({self.organization.name})"
 
 
-class Template(models.Model):
-    """Document template"""
-    CATEGORY_CHOICES = [
-        ('appeal', 'Appeal (Заявление)'),
-        ('complaint', 'Complaint (Жалоба)'),
-        ('request', 'Request (Ходатайство)'),
-        ('statement', 'Statement (Объяснение)'),
-        ('other', 'Other (Другое)'),
+class KnowledgeBaseFile(models.Model):
+    """Knowledge base file/content for RAG (Retrieval-Augmented Generation)"""
+    FILE_TYPE_CHOICES = [
+        ('text', 'Text'),
+        ('pdf', 'PDF'),
+        ('docx', 'DOCX'),
+        ('url', 'URL'),
     ]
     
-    organization = models.ForeignKey(
-        'organizations.Organization',
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('ready', 'Ready'),
+        ('error', 'Error'),
+    ]
+    
+    bot = models.ForeignKey(
+        Bot,
         on_delete=models.CASCADE,
-        related_name='templates'
+        related_name='knowledge_files',
+        verbose_name='Bot',
+        null=True,  # Allow null for migration compatibility
+        blank=True
     )
     name = models.CharField(
         max_length=200,
-        verbose_name='Template Name',
-        help_text='Template name (3-200 characters)'
+        verbose_name='File Name',
+        help_text='Name of the knowledge base file'
     )
-    description = models.TextField(
-        max_length=1000,
+    file = models.FileField(
+        upload_to='knowledge_base/%Y/%m/%d/',
         null=True,
         blank=True,
-        verbose_name='Description',
-        help_text='Optional template description'
+        verbose_name='File',
+        help_text='Upload PDF/DOCX file'
     )
     content = models.TextField(
-        verbose_name='Template Content',
-        help_text='Template content with placeholders (10-10000 characters)'
+        null=True,
+        blank=True,
+        verbose_name='Content',
+        help_text='Text content or extracted text from file'
     )
-    category = models.CharField(
-        max_length=50,
-        choices=CATEGORY_CHOICES,
-        default='appeal',
-        verbose_name='Category'
+    file_type = models.CharField(
+        max_length=20,
+        choices=FILE_TYPE_CHOICES,
+        default='text',
+        verbose_name='File Type'
     )
-    is_public = models.BooleanField(
-        default=False,
-        verbose_name='Is Public',
-        help_text='Share template with all organizations'
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        verbose_name='Processing Status'
     )
     
-    # Usage statistics
-    usage_count = models.IntegerField(default=0)
+    # Metadata
+    file_size = models.BigIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='File Size (bytes)'
+    )
+    processing_error = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name='Processing Error'
+    )
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    processed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Processed At'
+    )
     
     class Meta:
-        db_table = 'templates'
-        verbose_name = 'Template'
-        verbose_name_plural = 'Templates'
+        db_table = 'knowledge_base_files'
+        verbose_name = 'Knowledge Base File'
+        verbose_name_plural = 'Knowledge Base Files'
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['organization', 'category']),
-            models.Index(fields=['is_public']),
+            models.Index(fields=['bot', 'status']),
         ]
     
     def __str__(self):
-        return f"{self.name} - {self.category}"
+        return f"{self.name} ({self.file_type}) - {self.bot.name}"
+    
+    def mark_ready(self):
+        """Mark file as ready after processing"""
+        self.status = 'ready'
+        self.processed_at = timezone.now()
+        self.save()
+    
+    def mark_error(self, error_message: str):
+        """Mark file as error with message"""
+        self.status = 'error'
+        self.processing_error = error_message
+        self.processed_at = timezone.now()
+        self.save()
 
 
 class Statistics(models.Model):

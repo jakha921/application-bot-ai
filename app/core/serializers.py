@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from core.models import (
-    TelegramUser, Conversation, Message, Document, Bot, Template
+    TelegramUser, Conversation, Message, Bot, KnowledgeBaseFile
 )
 
 
@@ -13,13 +13,10 @@ class BotSerializer(serializers.ModelSerializer):
         model = Bot
         fields = [
             'id', 'name', 'description', 'telegram_token',
-            'is_active', 'total_conversations', 'total_documents',
+            'system_prompt', 'bot_type', 'is_active',
             'created_at', 'updated_at'
         ]
-        read_only_fields = [
-            'id', 'total_conversations', 'total_documents',
-            'created_at', 'updated_at'
-        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
     
     def validate_telegram_token(self, value):
         """Validate Telegram token format"""
@@ -33,29 +30,40 @@ class BotSerializer(serializers.ModelSerializer):
         return value
 
 
-class TemplateSerializer(serializers.ModelSerializer):
-    """Serializer for Template model"""
+class KnowledgeBaseFileSerializer(serializers.ModelSerializer):
+    """Serializer for KnowledgeBaseFile model"""
+    bot_name = serializers.CharField(source='bot.name', read_only=True)
     
     class Meta:
-        model = Template
+        model = KnowledgeBaseFile
         fields = [
-            'id', 'name', 'description', 'content',
-            'category', 'is_public', 'usage_count',
-            'created_at', 'updated_at'
+            'id', 'bot', 'bot_name', 'name', 'file',
+            'content', 'file_type', 'status', 'file_size',
+            'processing_error', 'created_at', 'updated_at',
+            'processed_at'
         ]
-        read_only_fields = ['id', 'usage_count', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'bot_name', 'file_size', 'processing_error',
+            'status', 'created_at', 'updated_at', 'processed_at'
+        ]
     
-    def validate_content(self, value):
-        """Validate content length"""
-        if len(value) < 10:
+    def validate(self, attrs):
+        """Validate that either file or content is provided"""
+        file_type = attrs.get('file_type')
+        file = attrs.get('file')
+        content = attrs.get('content')
+        
+        if file_type in ['pdf', 'docx'] and not file:
             raise serializers.ValidationError(
-                "Content must be at least 10 characters"
+                "File is required for PDF/DOCX file types"
             )
-        if len(value) > 10000:
+        
+        if file_type == 'text' and not content:
             raise serializers.ValidationError(
-                "Content must not exceed 10000 characters"
+                "Content is required for text file type"
             )
-        return value
+        
+        return attrs
 
 
 class ConversationSerializer(serializers.ModelSerializer):
@@ -66,7 +74,6 @@ class ConversationSerializer(serializers.ModelSerializer):
         model = Conversation
         fields = [
             'id', 'user', 'user_name', 'status',
-            'document_type', 'is_document_ready',
             'started_at', 'completed_at'
         ]
         read_only_fields = ['id', 'user_name', 'started_at', 'completed_at']
@@ -80,19 +87,6 @@ class MessageSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'conversation', 'role', 'message_type',
             'content', 'voice_file_id', 'transcription', 'created_at'
-        ]
-        read_only_fields = ['id', 'created_at']
-
-
-class DocumentSerializer(serializers.ModelSerializer):
-    """Serializer for Document model"""
-    conversation_id = serializers.IntegerField(source='conversation.id', read_only=True)
-    
-    class Meta:
-        model = Document
-        fields = [
-            'id', 'conversation', 'conversation_id',
-            'filename', 'file', 'document_text', 'created_at'
         ]
         read_only_fields = ['id', 'created_at']
 

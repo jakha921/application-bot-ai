@@ -7,8 +7,8 @@ from organizations.views import (
 )
 from core.views import (
     login_view, register_view, logout_view, me_view, analytics_view,
-    BotViewSet, TemplateViewSet, ConversationViewSet,
-    MessageViewSet, DocumentViewSet, TelegramUserViewSet
+    BotViewSet, KnowledgeBaseFileViewSet, ConversationViewSet,
+    MessageViewSet, TelegramUserViewSet
 )
 
 # DRF Router для ViewSets
@@ -19,10 +19,9 @@ router.register(r'api-keys', APIKeyViewSet, basename='apikey')
 
 # Core ViewSets
 router.register(r'bots', BotViewSet, basename='bot')
-router.register(r'templates', TemplateViewSet, basename='template')
+router.register(r'knowledge-files', KnowledgeBaseFileViewSet, basename='knowledge-file')
 router.register(r'conversations', ConversationViewSet, basename='conversation')
 router.register(r'messages', MessageViewSet, basename='message')
-router.register(r'documents', DocumentViewSet, basename='document')
 router.register(r'users', TelegramUserViewSet, basename='user')
 
 urlpatterns = [

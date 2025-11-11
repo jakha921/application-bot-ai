@@ -3,7 +3,10 @@ Admin configuration for core models
 """
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import TelegramUser, Conversation, Message, Document, Statistics
+from .models import (
+    TelegramUser, Conversation, Message, Statistics,
+    Bot, KnowledgeBaseFile, OrganizationInvite
+)
 
 
 @admin.register(TelegramUser)
@@ -40,17 +43,16 @@ class MessageInline(admin.TabularInline):
 @admin.register(Conversation)
 class ConversationAdmin(admin.ModelAdmin):
     list_display = [
-        'id', 'user', 'status', 'document_type',
-        'is_document_ready', 'started_at'
+        'id', 'user', 'status', 'started_at'
     ]
-    list_filter = ['status', 'is_document_ready', 'started_at']
-    search_fields = ['user__username', 'user__first_name', 'document_type']
+    list_filter = ['status', 'started_at']
+    search_fields = ['user__username', 'user__first_name']
     readonly_fields = ['started_at', 'completed_at']
     inlines = [MessageInline]
     
     fieldsets = (
         ('Conversation Info', {
-            'fields': ('user', 'status', 'document_type', 'is_document_ready')
+            'fields': ('user', 'status')
         }),
         ('Timestamps', {
             'fields': ('started_at', 'completed_at')
@@ -73,21 +75,71 @@ class MessageAdmin(admin.ModelAdmin):
     content_preview.short_description = 'Content'
 
 
-@admin.register(Document)
-class DocumentAdmin(admin.ModelAdmin):
-    list_display = ['id', 'filename', 'conversation', 'download_link', 'created_at']
-    list_filter = ['created_at']
-    search_fields = ['filename', 'conversation__user__username']
-    readonly_fields = ['created_at', 'download_link']
+@admin.register(Bot)
+class BotAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'organization', 'bot_type', 'is_active', 'created_at']
+    list_filter = ['bot_type', 'is_active', 'created_at']
+    search_fields = ['name', 'description', 'organization__name']
+    readonly_fields = ['created_at', 'updated_at']
     
-    def download_link(self, obj):
-        if obj.file:
-            return format_html(
-                '<a href="{}" target="_blank">Download</a>',
-                obj.file.url
-            )
-        return '-'
-    download_link.short_description = 'File'
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('organization', 'name', 'description', 'bot_type')
+        }),
+        ('Telegram', {
+            'fields': ('telegram_token', 'is_active')
+        }),
+        ('AI Configuration', {
+            'fields': ('system_prompt',),
+            'classes': ('wide',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
+@admin.register(KnowledgeBaseFile)
+class KnowledgeBaseFileAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'bot', 'file_type', 'status', 'created_at']
+    list_filter = ['file_type', 'status', 'created_at']
+    search_fields = ['name', 'bot__name', 'content']
+    readonly_fields = ['created_at', 'updated_at', 'processed_at', 'file_size']
+    
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('bot', 'name', 'file_type')
+        }),
+        ('Content', {
+            'fields': ('file', 'content')
+        }),
+        ('Processing', {
+            'fields': ('status', 'processing_error', 'file_size')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at', 'processed_at')
+        }),
+    )
+
+
+@admin.register(OrganizationInvite)
+class OrganizationInviteAdmin(admin.ModelAdmin):
+    list_display = ['id', 'email', 'organization', 'role', 'is_accepted', 'created_at']
+    list_filter = ['role', 'is_accepted', 'created_at']
+    search_fields = ['email', 'organization__name']
+    readonly_fields = ['token', 'created_at']
+    
+    fieldsets = (
+        ('Invite Info', {
+            'fields': ('organization', 'email', 'role')
+        }),
+        ('Status', {
+            'fields': ('is_accepted', 'token', 'expires_at')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at',)
+        }),
+    )
 
 
 @admin.register(Statistics)

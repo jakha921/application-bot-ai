@@ -11,6 +11,8 @@ interface Bot {
   name: string;
   description?: string;
   telegram_token?: string;
+  system_prompt?: string;
+  bot_type: 'chatbot' | 'assistant' | 'custom';
   is_active: boolean;
   created_at: string;
 }
@@ -31,6 +33,8 @@ export const ManageBotsPage = () => {
       name: '',
       description: '',
       telegram_token: '',
+      system_prompt: '',
+      bot_type: 'chatbot',
       is_active: true,
     },
   });
@@ -41,6 +45,8 @@ export const ManageBotsPage = () => {
       name: '',
       description: '',
       telegram_token: '',
+      system_prompt: '',
+      bot_type: 'chatbot',
       is_active: true,
     },
   });
@@ -71,6 +77,8 @@ export const ManageBotsPage = () => {
       name: bot.name,
       description: bot.description || '',
       telegram_token: bot.telegram_token || '',
+      system_prompt: bot.system_prompt || '',
+      bot_type: bot.bot_type || 'chatbot',
       is_active: bot.is_active,
     });
     setIsEditModalOpen(true);
@@ -256,6 +264,45 @@ export const ManageBotsPage = () => {
             </p>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              System Prompt (Инструкция для бота)
+            </label>
+            <textarea
+              {...createForm.register('system_prompt')}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              rows={5}
+              placeholder="Например: Ты — профессиональный ассистент по продажам. Твоя задача — помогать клиентам выбрать товар, отвечать на вопросы о продуктах и оформлять заказы."
+            />
+            {createForm.formState.errors.system_prompt && (
+              <p className="text-sm text-red-600 mt-1">
+                {createForm.formState.errors.system_prompt.message}
+              </p>
+            )}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Опишите роль и задачи бота. Это основная инструкция, которой будет следовать ИИ.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Тип бота
+            </label>
+            <select
+              {...createForm.register('bot_type')}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="chatbot">Chatbot (Обычный чат-бот)</option>
+              <option value="assistant">Assistant (Персональный ассистент)</option>
+              <option value="custom">Custom (Кастомный бот)</option>
+            </select>
+            {createForm.formState.errors.bot_type && (
+              <p className="text-sm text-red-600 mt-1">
+                {createForm.formState.errors.bot_type.message}
+              </p>
+            )}
+          </div>
+
           <div className="flex items-center">
             <input
               type="checkbox"
@@ -342,6 +389,45 @@ export const ManageBotsPage = () => {
             {editForm.formState.errors.telegram_token && (
               <p className="text-sm text-red-600 mt-1">
                 {editForm.formState.errors.telegram_token.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              System Prompt (Инструкция для бота)
+            </label>
+            <textarea
+              {...editForm.register('system_prompt')}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              rows={5}
+              placeholder="Например: Ты — профессиональный ассистент по продажам..."
+            />
+            {editForm.formState.errors.system_prompt && (
+              <p className="text-sm text-red-600 mt-1">
+                {editForm.formState.errors.system_prompt.message}
+              </p>
+            )}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Опишите роль и задачи бота. Это основная инструкция, которой будет следовать ИИ.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Тип бота
+            </label>
+            <select
+              {...editForm.register('bot_type')}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="chatbot">Chatbot (Обычный чат-бот)</option>
+              <option value="assistant">Assistant (Персональный ассистент)</option>
+              <option value="custom">Custom (Кастомный бот)</option>
+            </select>
+            {editForm.formState.errors.bot_type && (
+              <p className="text-sm text-red-600 mt-1">
+                {editForm.formState.errors.bot_type.message}
               </p>
             )}
           </div>
