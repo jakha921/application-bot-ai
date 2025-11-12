@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
+from django.db.models import Q
 from .serializers import (
     LoginSerializer, RegisterSerializer, UserSerializer,
     BotSerializer, KnowledgeBaseFileSerializer, ConversationSerializer,
@@ -17,16 +18,82 @@ class BotViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        """Filter bots by user's organization"""
+        """Filter bots by user's organization and assigned users"""
         user_profile = self.request.user.profile
+        user = self.request.user
+        
+        # Return bots that user created OR is assigned to
         return Bot.objects.filter(
             organization=user_profile.organization
-        ).order_by('-created_at')
+        ).filter(
+            Q(created_by=user) | Q(assigned_users=user)
+        ).distinct().order_by('-created_at')
     
     def perform_create(self, serializer):
-        """Set organization from user profile"""
+        """Set organization and creator from user profile"""
         user_profile = self.request.user.profile
-        serializer.save(organization=user_profile.organization)
+        serializer.save(
+            organization=user_profile.organization,
+            created_by=self.request.user
+        )
+    
+    @viewsets.decorators.action(
+        detail=True,
+        methods=['post'],
+        url_path='assign-users'
+    )
+    def assign_users(self, request, pk=None):
+        """Assign users to bot"""
+        bot = self.get_object()
+        user_ids = request.data.get('user_ids', [])
+        
+        # Check if current user is creator or admin
+        if (bot.created_by != request.user and
+                not request.user.profile.has_permission('manage_bots')):
+            return Response(
+                {'error': 'Only creator or admin can assign users'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get users from organization
+        from django.contrib.auth.models import User
+        users = User.objects.filter(
+            id__in=user_ids,
+            profile__organization=request.user.profile.organization
+        )
+        
+        # Set assigned users
+        bot.assigned_users.set(users)
+        
+        serializer = self.get_serializer(bot)
+        return Response(serializer.data)
+    
+    @viewsets.decorators.action(
+        detail=True,
+        methods=['get'],
+        url_path='available-users'
+    )
+    def available_users(self, request, pk=None):
+        """Get list of users that can be assigned to bot"""
+        from django.contrib.auth.models import User
+        
+        users = User.objects.filter(
+            profile__organization=request.user.profile.organization
+        ).exclude(
+            id=request.user.id  # Exclude current user
+        ).values('id', 'email', 'first_name', 'last_name')
+        
+        return Response({
+            'users': [
+                {
+                    'id': u['id'],
+                    'email': u['email'],
+                    'name': f"{u['first_name']} {u['last_name']}".strip()
+                           or u['email']
+                }
+                for u in users
+            ]
+        })
 
 
 class KnowledgeBaseFileViewSet(viewsets.ModelViewSet):

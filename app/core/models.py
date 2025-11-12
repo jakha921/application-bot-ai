@@ -272,6 +272,22 @@ class Bot(models.Model):
         on_delete=models.CASCADE,
         related_name='bots'
     )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_bots',
+        verbose_name='Created By',
+        help_text='User who created this bot'
+    )
+    assigned_users = models.ManyToManyField(
+        User,
+        blank=True,
+        related_name='assigned_bots',
+        verbose_name='Assigned Users',
+        help_text='Users who can manage this bot'
+    )
     name = models.CharField(
         max_length=100,
         verbose_name='Bot Name',
@@ -293,7 +309,10 @@ class Bot(models.Model):
         null=True,
         blank=True,
         verbose_name='System Prompt',
-        help_text='Main instructions/role for the bot (e.g., "You are a sales assistant...")'
+        help_text=(
+            'Main instructions/role for the bot '
+            '(e.g., "You are a sales assistant...")'
+        )
     )
     bot_type = models.CharField(
         max_length=50,

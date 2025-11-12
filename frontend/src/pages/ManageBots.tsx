@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useBots, useCreateBot, useUpdateBot, useDeleteBot } from '../hooks/useApi';
+import { 
+  useBots, useCreateBot, useUpdateBot, useDeleteBot,
+  useAssignBotUsers, useAvailableBotUsers
+} from '../hooks/useApi';
 import { Modal } from '../components/Modal';
-import { AddIcon, EditIcon, DeleteIcon, RobotIcon } from '../components/icons';
+import { AddIcon, EditIcon, DeleteIcon, RobotIcon, UserGroupIcon } from '../components/icons';
 import { botSchema, type BotFormData } from '../schemas/validationSchemas';
 
 interface Bot {
@@ -14,6 +17,14 @@ interface Bot {
   system_prompt?: string;
   bot_type: 'chatbot' | 'assistant' | 'custom';
   is_active: boolean;
+  created_by?: number;
+  created_by_email?: string;
+  created_by_name?: string;
+  assigned_users_list?: Array<{
+    id: number;
+    email: string;
+    name: string;
+  }>;
   created_at: string;
 }
 
@@ -22,10 +33,16 @@ export const ManageBotsPage = () => {
   const createBot = useCreateBot();
   const updateBot = useUpdateBot();
   const deleteBot = useDeleteBot();
+  const assignUsers = useAssignBotUsers();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [editingBot, setEditingBot] = useState<Bot | null>(null);
+  const [assigningBot, setAssigningBot] = useState<Bot | null>(null);
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+
+  const { data: availableUsers = [] } = useAvailableBotUsers(assigningBot?.id || '');
 
   const createForm = useForm<BotFormData>({
     resolver: zodResolver(botSchema) as any,
@@ -84,6 +101,33 @@ export const ManageBotsPage = () => {
     setIsEditModalOpen(true);
   };
 
+  const openAssignModal = (bot: Bot) => {
+    setAssigningBot(bot);
+    // Pre-select currently assigned users
+    const assignedIds = bot.assigned_users_list?.map((u) => u.id) || [];
+    setSelectedUserIds(assignedIds);
+    setIsAssignModalOpen(true);
+  };
+
+  const handleAssignUsers = async () => {
+    if (!assigningBot) return;
+    await assignUsers.mutateAsync({
+      botId: assigningBot.id,
+      userIds: selectedUserIds,
+    });
+    setIsAssignModalOpen(false);
+    setAssigningBot(null);
+    setSelectedUserIds([]);
+  };
+
+  const toggleUserSelection = (userId: number) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
   const closeCreateModal = () => {
     setIsCreateModalOpen(false);
     createForm.reset();
@@ -93,6 +137,12 @@ export const ManageBotsPage = () => {
     setIsEditModalOpen(false);
     setEditingBot(null);
     editForm.reset();
+  };
+
+  const closeAssignModal = () => {
+    setIsAssignModalOpen(false);
+    setAssigningBot(null);
+    setSelectedUserIds([]);
   };
 
   if (isLoading) {
@@ -159,11 +209,45 @@ export const ManageBotsPage = () => {
               </p>
             )}
 
+            {/* Creator Info */}
+            {bot.created_by_name && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                Создал: <span className="font-medium">{bot.created_by_name}</span>
+              </div>
+            )}
+
+            {/* Assigned Users */}
+            {bot.assigned_users_list && bot.assigned_users_list.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  Назначенные пользователи:
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {bot.assigned_users_list.map((user) => (
+                    <span
+                      key={user.id}
+                      className="text-xs px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full"
+                      title={user.email}
+                    >
+                      {user.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 {new Date(bot.created_at).toLocaleDateString('ru-RU')}
               </span>
               <div className="flex gap-2">
+                <button
+                  onClick={() => openAssignModal(bot)}
+                  className="p-2 text-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded-lg transition-colors"
+                  title="Назначить пользователей"
+                >
+                  <UserGroupIcon className="w-5 h-5" />
+                </button>
                 <button
                   onClick={() => openEditModal(bot)}
                   className="p-2 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors"
@@ -464,6 +548,68 @@ export const ManageBotsPage = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Assign Users Modal */}
+      <Modal
+        isOpen={isAssignModalOpen}
+        onClose={closeAssignModal}
+        title={`Назначить пользователей: ${assigningBot?.name || ''}`}
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Выберите пользователей, которые смогут управлять этим ботом
+          </p>
+
+          {availableUsers.length === 0 ? (
+            <p className="text-center py-4 text-gray-500">
+              Нет доступных пользователей для назначения
+            </p>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {availableUsers.map((user: any) => (
+                <label
+                  key={user.id}
+                  className="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedUserIds.includes(user.id)}
+                    onChange={() => toggleUserSelection(user.id)}
+                    className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  />
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {user.name}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {user.email}
+                    </p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={closeAssignModal}
+              className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              onClick={handleAssignUsers}
+              disabled={assignUsers.isPending}
+              className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+            >
+              {assignUsers.isPending ? 'Назначение...' : 'Назначить'}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

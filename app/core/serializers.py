@@ -8,15 +8,60 @@ from core.models import (
 
 class BotSerializer(serializers.ModelSerializer):
     """Serializer for Bot model"""
+    created_by_email = serializers.EmailField(
+        source='created_by.email',
+        read_only=True
+    )
+    created_by_name = serializers.SerializerMethodField()
+    assigned_user_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=User.objects.all(),
+        source='assigned_users',
+        required=False
+    )
+    assigned_users_list = serializers.SerializerMethodField()
     
     class Meta:
         model = Bot
         fields = [
             'id', 'name', 'description', 'telegram_token',
             'system_prompt', 'bot_type', 'is_active',
+            'created_by', 'created_by_email', 'created_by_name',
+            'assigned_user_ids', 'assigned_users_list',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'created_by', 'created_by_email', 'created_by_name',
+            'assigned_users_list', 'created_at', 'updated_at'
+        ]
+    
+    def get_created_by_name(self, obj):
+        """Get creator's full name"""
+        if obj.created_by:
+            full_name = (
+                f"{obj.created_by.first_name} "
+                f"{obj.created_by.last_name}"
+            ).strip()
+            return full_name or obj.created_by.email
+        return None
+    
+    def get_assigned_users_list(self, obj):
+        """Get list of assigned users with details"""
+        return [
+            {
+                'id': user.id,
+                'email': user.email,
+                'name': f"{user.first_name} {user.last_name}".strip() or user.email
+            }
+            for user in obj.assigned_users.all()
+        ]
+    
+    def create(self, validated_data):
+        """Set created_by to current user"""
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            validated_data['created_by'] = request.user
+        return super().create(validated_data)
     
     def validate_telegram_token(self, value):
         """Validate Telegram token format"""

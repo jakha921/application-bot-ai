@@ -77,6 +77,37 @@ export const useDeleteBot = () => {
   });
 };
 
+// Bot User Assignment
+export const useAssignBotUsers = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ botId, userIds }: { botId: string; userIds: number[] }) => {
+      const response = await apiClient.post(`/bots/${botId}/assign-users/`, {
+        user_ids: userIds,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bots'] });
+      toast.success('Пользователи назначены!');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Ошибка при назначении пользователей');
+    },
+  });
+};
+
+export const useAvailableBotUsers = (botId: string) => {
+  return useQuery({
+    queryKey: ['bot-available-users', botId],
+    queryFn: async () => {
+      const response = await apiClient.get(`/bots/${botId}/available-users/`);
+      return response.data.users || [];
+    },
+    enabled: !!botId,
+  });
+};
+
 // ============ TEMPLATES ============
 // DEPRECATED: Use Knowledge Base Files instead
 export const useTemplates = () => {
