@@ -262,3 +262,17 @@ STRIPE_PRICES = {
 # ============================================================================
 
 FRONTEND_URL = env.str('FRONTEND_URL', 'http://localhost:3000')
+
+# ============================================================================
+# EMAIL SETTINGS
+# ============================================================================
+
+EMAIL_BACKEND = env.str(
+    'EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend'
+)
+EMAIL_HOST = env.str('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = env.int('EMAIL_PORT', 587)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', True)
+EMAIL_HOST_USER = env.str('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = env.str('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = env.str('DEFAULT_FROM_EMAIL', 'noreply@botfactory.com')

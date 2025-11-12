@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 import toast from 'react-hot-toast';
 
+// Re-export apiClient for direct use in components
+export { apiClient };
+
 // ============ BOTS ============
 export const useBots = () => {
   return useQuery({
@@ -354,6 +357,103 @@ export const useDeleteUser = () => {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Ошибка при удалении пользователя');
+    },
+  });
+};
+
+// ============ ORGANIZATIONS ============
+export const useOrganization = () => {
+  return useQuery({
+    queryKey: ['organization'],
+    queryFn: async () => {
+      const response = await apiClient.get('/organizations/me/');
+      return response.data;
+    },
+  });
+};
+
+export const useOrganizationMembers = () => {
+  return useQuery({
+    queryKey: ['organization-members'],
+    queryFn: async () => {
+      const response = await apiClient.get('/organizations/members/');
+      return response.data.results || [];
+    },
+  });
+};
+
+export const useInviteUser = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { email: string; role: string }) => {
+      const response = await apiClient.post('/organizations/invite/', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organization-invites'] });
+      toast.success('Приглашение успешно отправлено!');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка при отправке приглашения');
+    },
+  });
+};
+
+export const useOrganizationInvites = () => {
+  return useQuery({
+    queryKey: ['organization-invites'],
+    queryFn: async () => {
+      const response = await apiClient.get('/organizations/invites/');
+      return response.data.results || [];
+    },
+  });
+};
+
+export const useUpdateMemberRole = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
+      const response = await apiClient.patch(`/organizations/members/${userId}/`, { role });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organization-members'] });
+      toast.success('Роль пользователя успешно обновлена!');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка при обновлении роли');
+    },
+  });
+};
+
+export const useRemoveMember = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      await apiClient.delete(`/organizations/members/${userId}/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organization-members'] });
+      toast.success('Участник успешно удалён из организации!');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка при удалении участника');
+    },
+  });
+};
+
+export const useCancelInvite = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (inviteId: string) => {
+      await apiClient.delete(`/organizations/invites/${inviteId}/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organization-invites'] });
+      toast.success('Приглашение отменено!');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка при отмене приглашения');
     },
   });
 };

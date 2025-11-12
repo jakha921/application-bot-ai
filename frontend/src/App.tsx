@@ -14,6 +14,8 @@ import { UsersPage } from './pages/Users';
 import { ManageBotsPage } from './pages/ManageBots';
 import { BotChatPage } from './pages/BotChat';
 import { ManageKnowledge } from './pages/ManageKnowledge';
+import OrganizationSettings from './pages/OrganizationSettings';
+import AcceptInvite from './pages/AcceptInvite';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +41,7 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/invite/accept/:token" element={<AcceptInvite />} />
             
             <Route
               path="/"
@@ -54,6 +57,7 @@ function App() {
               <Route path="manage-bots" element={<ManageBotsPage />} />
               <Route path="bot-chat" element={<BotChatPage />} />
               <Route path="knowledge" element={<ManageKnowledge />} />
+              <Route path="organization-settings" element={<OrganizationSettings />} />
               <Route path="templates" element={<TemplatesPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="monitoring" element={<MonitoringPage />} />
