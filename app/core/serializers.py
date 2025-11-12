@@ -72,11 +72,17 @@ class KnowledgeBaseFileSerializer(serializers.ModelSerializer):
         # Create the instance
         instance = super().create(validated_data)
         
-        # For text files, immediately set as ready
-        # For PDF/DOCX, process in background (or sync for now)
+        # Process all file types to extract text and generate embeddings
         if instance.file_type == 'text':
+            # Text files don't need extraction, but need embeddings
             instance.status = 'ready'
             instance.save()
+            # Trigger processing for embeddings generation
+            try:
+                process_knowledge_file(instance)
+            except Exception:
+                # Error already logged and saved by process_knowledge_file
+                pass
         elif instance.file_type in ['pdf', 'docx']:
             # Set status to processing
             instance.status = 'processing'
