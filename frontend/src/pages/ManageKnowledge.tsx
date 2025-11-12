@@ -34,6 +34,7 @@ export const ManageKnowledge = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<KnowledgeFile | null>(null);
+  const [selectedFileType, setSelectedFileType] = useState<'text' | 'pdf' | 'docx' | 'url'>('text');
 
   const { data: bots = [], isLoading: botsLoading } = useBots();
   const { data: files = [], isLoading: filesLoading } = useKnowledgeFiles(selectedBotId);
@@ -316,31 +317,55 @@ export const ManageKnowledge = () => {
             </label>
             <select
               {...createForm.register('file_type')}
+              onChange={(e) => {
+                createForm.setValue('file_type', e.target.value as any);
+                setSelectedFileType(e.target.value as any);
+              }}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="text">Текст</option>
-              <option value="pdf">PDF (скоро)</option>
-              <option value="docx">DOCX (скоро)</option>
+              <option value="pdf">PDF</option>
+              <option value="docx">DOCX</option>
               <option value="url">URL (скоро)</option>
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Контент
-            </label>
-            <textarea
-              {...createForm.register('content')}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              rows={8}
-              placeholder="Введите текст или информацию, которую должен знать бот..."
-            />
-            {createForm.formState.errors.content && (
-              <p className="text-sm text-red-600 mt-1">
-                {createForm.formState.errors.content.message}
-              </p>
-            )}
-          </div>
+          {/* File upload for PDF/DOCX */}
+          {selectedFileType === 'pdf' || selectedFileType === 'docx' ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Загрузить файл *
+              </label>
+              <input
+                type="file"
+                accept={selectedFileType === 'pdf' ? '.pdf' : '.docx,.doc'}
+                {...createForm.register('file')}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+              {createForm.formState.errors.file && (
+                <p className="text-sm text-red-600 mt-1">
+                  {createForm.formState.errors.file.message as string}
+                </p>
+              )}
+            </div>
+          ) : selectedFileType === 'text' ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Контент
+              </label>
+              <textarea
+                {...createForm.register('content')}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                rows={8}
+                placeholder="Введите текст или информацию, которую должен знать бот..."
+              />
+              {createForm.formState.errors.content && (
+                <p className="text-sm text-red-600 mt-1">
+                  {createForm.formState.errors.content.message}
+                </p>
+              )}
+            </div>
+          ) : null}
 
           <div className="flex gap-3 pt-4">
             <button

@@ -174,8 +174,25 @@ export const useCreateKnowledgeFile = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiClient.post('/knowledge-files/', data);
-      return response.data;
+      // Handle file upload with FormData
+      if (data.file) {
+        const formData = new FormData();
+        formData.append('bot', data.bot);
+        formData.append('name', data.name);
+        formData.append('file_type', data.file_type);
+        formData.append('file', data.file[0]); // file is FileList
+        
+        const response = await apiClient.post('/knowledge-files/', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        return response.data;
+      } else {
+        // Text content without file
+        const response = await apiClient.post('/knowledge-files/', data);
+        return response.data;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge-files'] });

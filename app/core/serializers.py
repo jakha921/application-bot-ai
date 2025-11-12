@@ -64,6 +64,32 @@ class KnowledgeBaseFileSerializer(serializers.ModelSerializer):
             )
         
         return attrs
+    
+    def create(self, validated_data):
+        """Create knowledge file and trigger async processing"""
+        from core.services.document_processor import process_knowledge_file
+        
+        # Create the instance
+        instance = super().create(validated_data)
+        
+        # For text files, immediately set as ready
+        # For PDF/DOCX, process in background (or sync for now)
+        if instance.file_type == 'text':
+            instance.status = 'ready'
+            instance.save()
+        elif instance.file_type in ['pdf', 'docx']:
+            # Set status to processing
+            instance.status = 'processing'
+            instance.save()
+            
+            # Process file synchronously (can be async with Celery later)
+            try:
+                process_knowledge_file(instance)
+            except Exception:
+                # Error already logged and saved by process_knowledge_file
+                pass
+        
+        return instance
 
 
 class ConversationSerializer(serializers.ModelSerializer):
