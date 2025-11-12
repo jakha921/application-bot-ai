@@ -393,6 +393,20 @@ class KnowledgeBaseFile(models.Model):
         verbose_name='Processing Error'
     )
     
+    # Vector embeddings for RAG (pgvector)
+    # Store as JSON for now, will migrate to pgvector VectorField later
+    embeddings = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name='Text Embeddings',
+        help_text='Vector embeddings for semantic search'
+    )
+    chunk_count = models.IntegerField(
+        default=0,
+        verbose_name='Number of chunks',
+        help_text='Number of text chunks with embeddings'
+    )
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

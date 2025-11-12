@@ -168,6 +168,24 @@ def process_knowledge_file(knowledge_file) -> Tuple[bool, Optional[str]]:
             knowledge_file.status = 'ready'
             knowledge_file.processed_at = timezone.now()
             knowledge_file.save()
+            
+            # Generate embeddings for text
+            try:
+                from core.services.embeddings_service import (
+                    process_knowledge_file_embeddings
+                )
+                success, error = process_knowledge_file_embeddings(
+                    knowledge_file
+                )
+                if not success:
+                    logger.warning(
+                        f"Embeddings generation failed: {error}"
+                    )
+            except Exception as emb_error:
+                logger.warning(
+                    f"Embeddings generation skipped: {str(emb_error)}"
+                )
+            
             return True, None
         
         # For URL type - would need URL fetching implementation
@@ -191,6 +209,23 @@ def process_knowledge_file(knowledge_file) -> Tuple[bool, Optional[str]]:
         knowledge_file.processed_at = timezone.now()
         knowledge_file.processing_error = None
         knowledge_file.save()
+        
+        # Generate embeddings for RAG (optional, can fail without blocking)
+        try:
+            from core.services.embeddings_service import (
+                process_knowledge_file_embeddings
+            )
+            success, error = process_knowledge_file_embeddings(knowledge_file)
+            if not success:
+                logger.warning(
+                    f"Embeddings generation failed for file "
+                    f"{knowledge_file.id}: {error}"
+                )
+        except Exception as emb_error:
+            logger.warning(
+                f"Embeddings generation skipped for file "
+                f"{knowledge_file.id}: {str(emb_error)}"
+            )
         
         logger.info(f"Successfully processed knowledge file {knowledge_file.id}")
         return True, None

@@ -223,3 +223,54 @@ def me_view(request):
     """Получение данных текущего пользователя"""
     serializer = UserSerializer(request.user)
     return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def semantic_search_view(request):
+    """Semantic search across knowledge base using RAG"""
+    from core.services.embeddings_service import semantic_search
+    
+    query = request.data.get('query', '')
+    bot_id = request.data.get('bot_id')
+    top_k = int(request.data.get('top_k', 3))
+    min_similarity = float(request.data.get('min_similarity', 0.7))
+    
+    if not query:
+        return Response(
+            {'error': 'Query is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if not bot_id:
+        return Response(
+            {'error': 'bot_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Verify bot belongs to user's organization
+    user_profile = request.user.profile
+    try:
+        Bot.objects.get(
+            id=bot_id,
+            organization=user_profile.organization
+        )
+    except Bot.DoesNotExist:
+        return Response(
+            {'error': 'Bot not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    # Perform semantic search
+    results = semantic_search(
+        query=query,
+        bot_id=bot_id,
+        top_k=top_k,
+        min_similarity=min_similarity
+    )
+    
+    return Response({
+        'query': query,
+        'results': results,
+        'count': len(results)
+    })

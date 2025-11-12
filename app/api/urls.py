@@ -7,6 +7,7 @@ from organizations.views import (
 )
 from core.views import (
     login_view, register_view, logout_view, me_view, analytics_view,
+    semantic_search_view,
     BotViewSet, KnowledgeBaseFileViewSet, ConversationViewSet,
     MessageViewSet, TelegramUserViewSet
 )
@@ -33,6 +34,9 @@ urlpatterns = [
     
     # Analytics endpoint
     path('analytics/', analytics_view, name='analytics'),
+    
+    # Semantic search endpoint
+    path('semantic-search/', semantic_search_view, name='semantic-search'),
     
     # DRF router endpoints
     path('', include(router.urls)),
