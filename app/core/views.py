@@ -1,5 +1,5 @@
 from rest_framework import status, viewsets
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
@@ -37,7 +37,7 @@ class BotViewSet(viewsets.ModelViewSet):
             created_by=self.request.user
         )
     
-    @viewsets.decorators.action(
+    @action(
         detail=True,
         methods=['post'],
         url_path='assign-users'
@@ -68,7 +68,7 @@ class BotViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(bot)
         return Response(serializer.data)
     
-    @viewsets.decorators.action(
+    @action(
         detail=True,
         methods=['get'],
         url_path='available-users'
