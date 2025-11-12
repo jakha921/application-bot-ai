@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '../hooks/useApi';
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useBots } from '../hooks/useApi';
 import { 
   UsersIcon, 
   AddIcon, 
@@ -23,9 +23,12 @@ interface User {
 
 interface UserFormData {
   email: string;
+  password?: string;
   full_name: string;
   role: 'owner' | 'admin' | 'editor' | 'viewer';
   is_active: boolean;
+  bot_ids?: number[];
+  activate_immediately?: boolean;
 }
 
 const ROLES = [
@@ -57,6 +60,7 @@ const ROLES = [
 
 export const UsersPage = () => {
   const { data: users = [], isLoading } = useUsers();
+  const { data: bots = [] } = useBots();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
@@ -64,29 +68,49 @@ export const UsersPage = () => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [selectedBotIds, setSelectedBotIds] = useState<number[]>([]);
 
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
+    password: '',
     full_name: '',
     role: 'viewer',
     is_active: true,
+    bot_ids: [],
+    activate_immediately: true,
   });
 
   const resetForm = () => {
     setFormData({
       email: '',
+      password: '',
       full_name: '',
       role: 'viewer',
       is_active: true,
+      bot_ids: [],
+      activate_immediately: true,
     });
+    setSelectedBotIds([]);
+  };
+
+  const toggleBotSelection = (botId: number) => {
+    setSelectedBotIds(prev =>
+      prev.includes(botId)
+        ? prev.filter(id => id !== botId)
+        : [...prev, botId]
+    );
   };
 
   const handleInvite = async () => {
-    if (!formData.email.trim()) {
+    if (!formData.email.trim() || !formData.password?.trim()) {
       return;
     }
 
-    await createUser.mutateAsync(formData);
+    await createUser.mutateAsync({
+      ...formData,
+      bot_ids: selectedBotIds,
+      password: formData.password!,
+    });
     setIsInviteModalOpen(false);
     resetForm();
   };
@@ -168,7 +192,7 @@ export const UsersPage = () => {
           className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
         >
           <AddIcon className="w-5 h-5 mr-2" />
-          Пригласить пользователя
+          Создать пользователя
         </button>
       </div>
 
@@ -311,13 +335,13 @@ export const UsersPage = () => {
             Нет пользователей
           </h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Пригласите первого пользователя для совместной работы
+            Создайте первого пользователя для начала работы
           </p>
           <button
             onClick={() => setIsInviteModalOpen(true)}
             className="inline-block px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
-            Пригласить пользователя
+            Создать пользователя
           </button>
         </div>
       )}
@@ -329,7 +353,7 @@ export const UsersPage = () => {
           setIsInviteModalOpen(false);
           resetForm();
         }}
-        title="Пригласить пользователя"
+        title="Создать пользователя"
         size="lg"
       >
         <div className="space-y-4">
@@ -348,7 +372,20 @@ export const UsersPage = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Полное имя
+              Пароль *
+            </label>
+            <input
+              type="password"
+              value={formData.password || ''}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+              placeholder="Минимум 8 символов"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Полное имя *
             </label>
             <input
               type="text"
@@ -361,7 +398,7 @@ export const UsersPage = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Роль
+              Роль *
             </label>
             <div className="grid grid-cols-1 gap-3">
               {ROLES.map((role) => (
@@ -394,6 +431,37 @@ export const UsersPage = () => {
             </div>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Доступ к ботам
+            </label>
+            <div className="border border-gray-300 dark:border-gray-600 rounded-md p-3 max-h-48 overflow-y-auto bg-white dark:bg-gray-700">
+              {bots.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Нет доступных ботов</p>
+              ) : (
+                <div className="space-y-2">
+                  {bots.map((bot: any) => (
+                    <label
+                      key={bot.id}
+                      className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 p-2 rounded"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedBotIds.includes(bot.id)}
+                        onChange={() => toggleBotSelection(bot.id)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-900 dark:text-white">{bot.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Выберите ботов, которыми сможет управлять этот пользователь
+            </p>
+          </div>
+
           <div className="flex items-center">
             <input
               type="checkbox"
@@ -420,11 +488,11 @@ export const UsersPage = () => {
             </button>
             <button
               onClick={handleInvite}
-              disabled={!formData.email.trim() || createUser.isPending}
+              disabled={!formData.email.trim() || !formData.password?.trim() || createUser.isPending}
               className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <SendIcon className="w-5 h-5 inline mr-2" />
-              {createUser.isPending ? 'Отправка...' : 'Отправить приглашение'}
+              {createUser.isPending ? 'Создание...' : 'Создать пользователя'}
             </button>
           </div>
         </div>
