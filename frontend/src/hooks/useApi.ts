@@ -345,16 +345,24 @@ export const useUsers = () => {
 export const useCreateUser = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiClient.post('/users/', data);
+    mutationFn: async (data: {
+      email: string;
+      password: string;
+      full_name: string;
+      role: string;
+      bot_ids?: number[];
+      activate_immediately?: boolean;
+    }) => {
+      const response = await apiClient.post('/organizations/create-user/', data);
       return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['organization-members'] });
       toast.success('Пользователь успешно создан!');
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Ошибка при создании пользователя');
+      toast.error(error.response?.data?.error || 'Ошибка при создании пользователя');
     },
   });
 };

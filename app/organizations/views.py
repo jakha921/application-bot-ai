@@ -176,9 +176,85 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         
         return Response(status=status.HTTP_204_NO_CONTENT)
     
+    @action(detail=False, methods=['post'], url_path='create-user')
+    def create_user(self, request):
+        """Прямое создание пользователя с логином/паролем"""
+        from django.contrib.auth.models import User
+        from core.models import Bot
+        
+        org = Organization.objects.filter(
+            user_profiles__user=request.user,
+            user_profiles__role__in=['owner', 'admin']
+        ).first()
+        
+        if not org:
+            return Response(
+                {'error': 'Permission denied or no organization found'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        email = request.data.get('email')
+        password = request.data.get('password')
+        full_name = request.data.get('full_name', '')
+        role = request.data.get('role', 'viewer')
+        bot_ids = request.data.get('bot_ids', [])
+        activate_immediately = request.data.get('activate_immediately', True)
+        
+        if not email or not password:
+            return Response(
+                {'error': 'Email and password are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Проверка существующего пользователя
+        if User.objects.filter(email=email).exists():
+            return Response(
+                {'error': 'User with this email already exists'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Создание Django User
+        name_parts = full_name.split(' ', 1)
+        first_name = name_parts[0] if name_parts else ''
+        last_name = name_parts[1] if len(name_parts) > 1 else ''
+        
+        user = User.objects.create_user(
+            username=email,
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            is_active=activate_immediately
+        )
+        
+        # Создание профиля в организации
+        UserProfile.objects.create(
+            user=user,
+            organization=org,
+            role=role
+        )
+        
+        # Назначение ботов пользователю
+        if bot_ids:
+            bots = Bot.objects.filter(
+                id__in=bot_ids,
+                organization=org
+            )
+            for bot in bots:
+                bot.assigned_users.add(user)
+        
+        return Response({
+            'id': user.id,
+            'email': user.email,
+            'full_name': user.get_full_name(),
+            'role': role,
+            'is_active': user.is_active,
+            'assigned_bots_count': len(bot_ids),
+        }, status=status.HTTP_201_CREATED)
+    
     @action(detail=False, methods=['post'])
     def invite(self, request):
-        """Отправка приглашения в организацию"""
+        """Отправка приглашения в организацию (deprecated - use create_user)"""
         org = Organization.objects.filter(
             user_profiles__user=request.user,
             user_profiles__role__in=['owner', 'admin']
