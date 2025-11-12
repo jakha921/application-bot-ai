@@ -97,6 +97,24 @@ export const useAssignBotUsers = () => {
   });
 };
 
+// Improve Bot Prompt
+export const useImprovePrompt = () => {
+  return useMutation({
+    mutationFn: async ({ botId, prompt }: { botId: string; prompt: string }) => {
+      const response = await apiClient.post(`/bots/${botId}/improve-prompt/`, {
+        prompt,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success('Промпт улучшен с помощью ИИ!');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Ошибка при улучшении промпта');
+    },
+  });
+};
+
 export const useAvailableBotUsers = (botId: string) => {
   return useQuery({
     queryKey: ['bot-available-users', botId],

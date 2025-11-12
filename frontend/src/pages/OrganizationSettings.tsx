@@ -5,69 +5,95 @@ import { z } from 'zod';
 import {
   useOrganization,
   useOrganizationMembers,
-  useInviteUser,
-  useOrganizationInvites,
+  useCreateUser,
+  useBots,
   useUpdateMemberRole,
   useRemoveMember,
-  useCancelInvite,
 } from '../hooks/useApi';
 import {
   UserGroupIcon,
-  EnvelopeIcon,
   TrashIcon,
   XMarkIcon,
-  CheckCircleIcon,
-  ClockIcon,
   ShieldCheckIcon,
+  PlusIcon,
 } from '../components/icons';
 
-const inviteSchema = z.object({
+const createUserSchema = z.object({
   email: z.string().email('Введите корректный email'),
-  role: z.enum(['admin', 'member'], {
+  password: z.string().min(8, 'Пароль должен содержать минимум 8 символов'),
+  full_name: z.string().min(1, 'Введите полное имя'),
+  role: z.enum(['owner', 'admin', 'editor', 'viewer'], {
     message: 'Выберите роль',
   }),
+  bot_ids: z.array(z.number()).optional(),
+  activate_immediately: z.boolean().optional().default(true),
 });
 
-type InviteFormData = z.infer<typeof inviteSchema>;
+type CreateUserFormData = {
+  email: string;
+  password: string;
+  full_name: string;
+  role: 'owner' | 'admin' | 'editor' | 'viewer';
+  activate_immediately?: boolean;
+  bot_ids?: number[];
+};
 
 const roleLabels: Record<string, string> = {
   owner: 'Владелец',
   admin: 'Администратор',
-  member: 'Участник',
+  editor: 'Редактор',
+  viewer: 'Наблюдатель',
 };
 
 const roleBadgeColors: Record<string, string> = {
-  owner: 'bg-purple-100 text-purple-800',
-  admin: 'bg-blue-100 text-blue-800',
-  member: 'bg-gray-100 text-gray-800',
+  owner: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+  admin: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  editor: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  viewer: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
 };
 
 export default function OrganizationSettings() {
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
-  const [inviteToCancel, setInviteToCancel] = useState<string | null>(null);
+  const [selectedBotIds, setSelectedBotIds] = useState<number[]>([]);
 
   const { data: organization, isLoading: orgLoading } = useOrganization();
   const { data: members = [], isLoading: membersLoading } = useOrganizationMembers();
-  const { data: invites = [], isLoading: invitesLoading } = useOrganizationInvites();
-  const inviteUser = useInviteUser();
+  const { data: bots = [] } = useBots();
+  const createUser = useCreateUser();
   const updateMemberRole = useUpdateMemberRole();
   const removeMember = useRemoveMember();
-  const cancelInvite = useCancelInvite();
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
-  } = useForm<InviteFormData>({
-    resolver: zodResolver(inviteSchema),
+  } = useForm<CreateUserFormData>({
+    resolver: zodResolver(createUserSchema),
+    defaultValues: {
+      role: 'viewer',
+      activate_immediately: true,
+      bot_ids: [],
+    },
   });
 
-  const onSubmitInvite = async (data: InviteFormData) => {
-    await inviteUser.mutateAsync(data);
+  const onSubmitCreateUser = async (data: CreateUserFormData) => {
+    await createUser.mutateAsync({
+      ...data,
+      bot_ids: selectedBotIds,
+    });
     reset();
-    setIsInviteModalOpen(false);
+    setSelectedBotIds([]);
+    setIsCreateUserModalOpen(false);
+  };
+
+  const toggleBotSelection = (botId: number) => {
+    setSelectedBotIds(prev =>
+      prev.includes(botId)
+        ? prev.filter(id => id !== botId)
+        : [...prev, botId]
+    );
   };
 
   const handleUpdateRole = async (userId: string, newRole: string) => {
@@ -80,16 +106,10 @@ export default function OrganizationSettings() {
     setMemberToDelete(null);
   };
 
-  const handleCancelInvite = async () => {
-    if (!inviteToCancel) return;
-    await cancelInvite.mutateAsync(inviteToCancel);
-    setInviteToCancel(null);
-  };
-
-  if (orgLoading || membersLoading || invitesLoading) {
+  if (orgLoading || membersLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Загрузка...</div>
+        <div className="text-gray-500 dark:text-gray-400">Загрузка...</div>
       </div>
     );
   }
@@ -110,19 +130,19 @@ export default function OrganizationSettings() {
       </div>
 
       {/* Team Members */}
-      <div className="bg-white shadow rounded-lg p-6 mb-6">
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 mb-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
-            <UserGroupIcon className="h-6 w-6 text-gray-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Участники команды</h2>
-            <span className="text-sm text-gray-500">({members.length})</span>
+            <UserGroupIcon className="h-6 w-6 text-gray-600 dark:text-gray-400" />
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Пользователи</h2>
+            <span className="text-sm text-gray-500 dark:text-gray-400">({members.length})</span>
           </div>
           <button
-            onClick={() => setIsInviteModalOpen(true)}
+            onClick={() => setIsCreateUserModalOpen(true)}
             className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
-            <EnvelopeIcon className="h-5 w-5" />
-            <span>Пригласить участника</span>
+            <PlusIcon className="h-5 w-5" />
+            <span>Создать пользователя</span>
           </button>
         </div>
 
@@ -191,113 +211,38 @@ export default function OrganizationSettings() {
         </div>
       </div>
 
-      {/* Pending Invites */}
-      {invites.length > 0 && (
-        <div className="bg-white shadow rounded-lg p-6">
-          <div className="flex items-center space-x-3 mb-6">
-            <ClockIcon className="h-6 w-6 text-yellow-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Отправленные приглашения</h2>
-            <span className="text-sm text-gray-500">({invites.length})</span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Роль
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Статус
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Истекает
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Действия
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {invites.map((invite: any) => (
-                  <tr key={invite.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{invite.email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${roleBadgeColors[invite.role]}`}
-                      >
-                        {roleLabels[invite.role]}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {invite.is_accepted ? (
-                        <span className="flex items-center text-green-600 text-sm">
-                          <CheckCircleIcon className="h-5 w-5 mr-1" />
-                          Принято
-                        </span>
-                      ) : (
-                        <span className="flex items-center text-yellow-600 text-sm">
-                          <ClockIcon className="h-5 w-5 mr-1" />
-                          Ожидает
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(invite.expires_at).toLocaleDateString('ru-RU')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      {!invite.is_accepted && (
-                        <button
-                          onClick={() => setInviteToCancel(invite.id)}
-                          className="text-red-600 hover:text-red-900"
-                          title="Отменить приглашение"
-                        >
-                          <XMarkIcon className="h-5 w-5" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Invite Modal */}
-      {isInviteModalOpen && (
+      {/* Create User Modal */}
+      {isCreateUserModalOpen && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="px-6 py-4 border-b border-gray-200">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900">Пригласить участника</h3>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                  Создать пользователя
+                </h3>
                 <button
                   onClick={() => {
-                    setIsInviteModalOpen(false);
+                    setIsCreateUserModalOpen(false);
                     reset();
+                    setSelectedBotIds([]);
                   }}
-                  className="text-gray-400 hover:text-gray-500"
+                  className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
                 >
                   <XMarkIcon className="h-6 w-6" />
                 </button>
               </div>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmitInvite)} className="px-6 py-4 space-y-4">
+            <form onSubmit={handleSubmit(onSubmitCreateUser)} className="px-6 py-4 space-y-4">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Email *
                 </label>
                 <input
                   type="email"
                   id="email"
                   {...register('email')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="user@example.com"
                 />
                 {errors.email && (
@@ -306,38 +251,115 @@ export default function OrganizationSettings() {
               </div>
 
               <div>
-                <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
-                  Роль
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Пароль *
+                </label>
+                <input
+                  type="password"
+                  id="password"
+                  {...register('password')}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Минимум 8 символов"
+                />
+                {errors.password && (
+                  <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Полное имя *
+                </label>
+                <input
+                  type="text"
+                  id="full_name"
+                  {...register('full_name')}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Иван Иванов"
+                />
+                {errors.full_name && (
+                  <p className="mt-1 text-sm text-red-600">{errors.full_name.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Роль *
                 </label>
                 <select
                   id="role"
                   {...register('role')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Выберите роль...</option>
+                  <option value="viewer">Наблюдатель</option>
+                  <option value="editor">Редактор</option>
                   <option value="admin">Администратор</option>
-                  <option value="member">Участник</option>
+                  <option value="owner">Владелец</option>
                 </select>
                 {errors.role && <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>}
               </div>
 
-              <div className="flex justify-end space-x-3 pt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Доступ к ботам
+                </label>
+                <div className="border border-gray-300 dark:border-gray-600 rounded-md p-3 max-h-48 overflow-y-auto bg-white dark:bg-gray-700">
+                  {bots.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Нет доступных ботов</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {bots.map((bot: any) => (
+                        <label
+                          key={bot.id}
+                          className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 p-2 rounded"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedBotIds.includes(bot.id)}
+                            onChange={() => toggleBotSelection(bot.id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-900 dark:text-white">{bot.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Выберите ботов, которыми сможет управлять этот пользователь
+                </p>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="activate_immediately"
+                  {...register('activate_immediately')}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="activate_immediately" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                  Активировать пользователя сразу
+                </label>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <button
                   type="button"
                   onClick={() => {
-                    setIsInviteModalOpen(false);
+                    setIsCreateUserModalOpen(false);
                     reset();
+                    setSelectedBotIds([]);
                   }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
                 >
                   Отмена
                 </button>
                 <button
                   type="submit"
-                  disabled={inviteUser.isPending}
+                  disabled={createUser.isPending}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {inviteUser.isPending ? 'Отправка...' : 'Отправить приглашение'}
+                  {createUser.isPending ? 'Создание...' : 'Создать пользователя'}
                 </button>
               </div>
             </form>
@@ -348,16 +370,15 @@ export default function OrganizationSettings() {
       {/* Delete Member Confirmation */}
       {memberToDelete && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Удалить участника?</h3>
-            <p className="text-sm text-gray-500 mb-6">
-              Вы уверены, что хотите удалить этого участника из организации? Это действие нельзя
-              отменить.
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Удалить участника?</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+              Вы уверены, что хотите удалить этого участника? Это действие нельзя отменить.
             </p>
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setMemberToDelete(null)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
               >
                 Отмена
               </button>
@@ -367,33 +388,6 @@ export default function OrganizationSettings() {
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50"
               >
                 {removeMember.isPending ? 'Удаление...' : 'Удалить'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Cancel Invite Confirmation */}
-      {inviteToCancel && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Отменить приглашение?</h3>
-            <p className="text-sm text-gray-500 mb-6">
-              Вы уверены, что хотите отменить это приглашение?
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setInviteToCancel(null)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handleCancelInvite}
-                disabled={cancelInvite.isPending}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50"
-              >
-                {cancelInvite.isPending ? 'Отмена...' : 'Отменить приглашение'}
               </button>
             </div>
           </div>

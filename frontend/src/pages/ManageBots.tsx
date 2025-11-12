@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { 
   useBots, useCreateBot, useUpdateBot, useDeleteBot,
-  useAssignBotUsers, useAvailableBotUsers
+  useAssignBotUsers, useAvailableBotUsers, useImprovePrompt
 } from '../hooks/useApi';
 import { Modal } from '../components/Modal';
 import { AddIcon, EditIcon, DeleteIcon, RobotIcon, UserGroupIcon } from '../components/icons';
@@ -34,6 +34,7 @@ export const ManageBotsPage = () => {
   const updateBot = useUpdateBot();
   const deleteBot = useDeleteBot();
   const assignUsers = useAssignBotUsers();
+  const improvePrompt = useImprovePrompt();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -41,6 +42,7 @@ export const ManageBotsPage = () => {
   const [editingBot, setEditingBot] = useState<Bot | null>(null);
   const [assigningBot, setAssigningBot] = useState<Bot | null>(null);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  const [isImprovingPrompt, setIsImprovingPrompt] = useState(false);
 
   const { data: availableUsers = [] } = useAvailableBotUsers(assigningBot?.id || '');
 
@@ -137,6 +139,31 @@ export const ManageBotsPage = () => {
     setIsEditModalOpen(false);
     setEditingBot(null);
     editForm.reset();
+  };
+
+  const handleImprovePrompt = async (form: any) => {
+    if (!editingBot) return;
+    
+    const currentPrompt = form.getValues('system_prompt') || '';
+    if (!currentPrompt.trim()) {
+      alert('Сначала введите текст промпта');
+      return;
+    }
+
+    setIsImprovingPrompt(true);
+    try {
+      const result = await improvePrompt.mutateAsync({
+        botId: editingBot.id,
+        prompt: currentPrompt,
+      });
+      
+      // Update form with improved prompt
+      form.setValue('system_prompt', result.improved_prompt);
+    } catch (error) {
+      console.error('Failed to improve prompt:', error);
+    } finally {
+      setIsImprovingPrompt(false);
+    }
   };
 
   const closeAssignModal = () => {
@@ -478,9 +505,31 @@ export const ManageBotsPage = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              System Prompt (Инструкция для бота)
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                System Prompt (Инструкция для бота)
+              </label>
+              <button
+                type="button"
+                onClick={() => handleImprovePrompt(editForm)}
+                disabled={isImprovingPrompt}
+                className="px-3 py-1 text-xs bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              >
+                {isImprovingPrompt ? (
+                  <>
+                    <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Улучшаю...
+                  </>
+                ) : (
+                  <>
+                    ✨ Улучшить с помощью ИИ
+                  </>
+                )}
+              </button>
+            </div>
             <textarea
               {...editForm.register('system_prompt')}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"

@@ -43,6 +43,75 @@ class BotViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['post'],
+        url_path='improve-prompt'
+    )
+    def improve_prompt(self, request, pk=None):
+        """Improve bot system prompt using AI"""
+        bot = self.get_object()
+        current_prompt = request.data.get('prompt', bot.system_prompt or '')
+        
+        if not current_prompt:
+            return Response(
+                {'error': 'Prompt is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if user has permission to edit this bot
+        if (bot.created_by != request.user and
+                request.user not in bot.assigned_users.all() and
+                not request.user.profile.has_permission('manage_bots')):
+            return Response(
+                {'error': 'You do not have permission to edit this bot'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            from django.conf import settings
+            import openai
+            
+            # Use OpenAI to improve prompt
+            openai.api_key = settings.OPENAI_API_KEY
+            
+            improvement_prompt = f"""You are an expert at writing system prompts for AI chatbots.
+Your task is to improve the following system prompt to make it more clear, effective, and professional.
+
+Current prompt:
+{current_prompt}
+
+Please provide an improved version that:
+1. Is clear and concise
+2. Sets proper context and role for the AI
+3. Defines expected behavior and limitations
+4. Uses professional language
+5. Maintains the original intent but enhances structure
+
+Return ONLY the improved prompt text, without any explanations or meta-commentary."""
+
+            response = openai.chat.completions.create(
+                model='gpt-4o-mini',
+                messages=[
+                    {'role': 'user', 'content': improvement_prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1000,
+            )
+            
+            improved_prompt = response.choices[0].message.content.strip()
+            
+            return Response({
+                'original_prompt': current_prompt,
+                'improved_prompt': improved_prompt,
+            })
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to improve prompt: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(
+        detail=True,
+        methods=['post'],
         url_path='assign-users'
     )
     def assign_users(self, request, pk=None):
