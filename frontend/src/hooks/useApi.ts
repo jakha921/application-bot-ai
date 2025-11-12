@@ -75,6 +75,7 @@ export const useDeleteBot = () => {
 };
 
 // ============ TEMPLATES ============
+// DEPRECATED: Use Knowledge Base Files instead
 export const useTemplates = () => {
   return useQuery({
     queryKey: ['templates'],
@@ -142,6 +143,81 @@ export const useDeleteTemplate = () => {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Ошибка при удалении шаблона');
+    },
+  });
+};
+
+// ============ KNOWLEDGE BASE FILES ============
+export const useKnowledgeFiles = (botId?: string) => {
+  return useQuery({
+    queryKey: ['knowledge-files', botId],
+    queryFn: async () => {
+      const params = botId ? { bot_id: botId } : {};
+      const response = await apiClient.get('/knowledge-files/', { params });
+      return response.data.results || [];
+    },
+  });
+};
+
+export const useKnowledgeFile = (id: string) => {
+  return useQuery({
+    queryKey: ['knowledge-file', id],
+    queryFn: async () => {
+      const response = await apiClient.get(`/knowledge-files/${id}/`);
+      return response.data;
+    },
+    enabled: !!id,
+  });
+};
+
+export const useCreateKnowledgeFile = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiClient.post('/knowledge-files/', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge-files'] });
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      toast.success('Файл базы знаний успешно создан!');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка при создании файла');
+    },
+  });
+};
+
+export const useUpdateKnowledgeFile = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiClient.put(`/knowledge-files/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge-files'] });
+      toast.success('Файл базы знаний успешно обновлён!');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка при обновлении файла');
+    },
+  });
+};
+
+export const useDeleteKnowledgeFile = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.delete(`/knowledge-files/${id}/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge-files'] });
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      toast.success('Файл базы знаний успешно удалён!');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка при удалении файла');
     },
   });
 };

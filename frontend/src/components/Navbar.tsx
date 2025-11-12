@@ -11,6 +11,7 @@ import {
   UsersIcon,
   LogoutIcon,
   MonitoringIcon,
+  BookOpenIcon,
 } from './icons';
 
 interface NavItem {
@@ -23,6 +24,7 @@ const navItems: NavItem[] = [
   { path: '/dashboard', label: 'Дашборд', icon: DashboardIcon },
   { path: '/bots', label: 'Боты', icon: RobotIcon },
   { path: '/bot-chat', label: 'Тест чата', icon: ChatIcon },
+  { path: '/knowledge', label: 'База знаний', icon: BookOpenIcon },
   { path: '/templates', label: 'Шаблоны', icon: TemplateIcon },
   { path: '/monitoring', label: 'Мониторинг', icon: MonitoringIcon },
   { path: '/settings', label: 'Настройки', icon: SettingsIcon },

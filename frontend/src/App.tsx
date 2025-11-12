@@ -13,6 +13,7 @@ import { MonitoringPage } from './pages/Monitoring';
 import { UsersPage } from './pages/Users';
 import { ManageBotsPage } from './pages/ManageBots';
 import { BotChatPage } from './pages/BotChat';
+import { ManageKnowledge } from './pages/ManageKnowledge';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,6 +53,7 @@ function App() {
               <Route path="bots" element={<BotsPage />} />
               <Route path="manage-bots" element={<ManageBotsPage />} />
               <Route path="bot-chat" element={<BotChatPage />} />
+              <Route path="knowledge" element={<ManageKnowledge />} />
               <Route path="templates" element={<TemplatesPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="monitoring" element={<MonitoringPage />} />
