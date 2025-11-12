@@ -480,3 +480,50 @@ class Statistics(models.Model):
     
     def __str__(self):
         return f"Stats for {self.date}"
+
+
+class Template(models.Model):
+    """Template for bot responses or documents"""
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        related_name='templates'
+    )
+    name = models.CharField(
+        max_length=200,
+        verbose_name='Template Name'
+    )
+    description = models.TextField(
+        max_length=1000,
+        null=True,
+        blank=True,
+        verbose_name='Description'
+    )
+    content = models.TextField(
+        verbose_name='Template Content',
+        help_text='Template text content'
+    )
+    category = models.CharField(
+        max_length=100,
+        verbose_name='Category',
+        help_text='Template category for organization'
+    )
+    is_public = models.BooleanField(
+        default=False,
+        verbose_name='Is Public',
+        help_text='Whether template is public or private to organization'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'templates'
+        verbose_name = 'Template'
+        verbose_name_plural = 'Templates'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['organization', 'category']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} - {self.organization.name}"

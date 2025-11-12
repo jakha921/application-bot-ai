@@ -7,9 +7,12 @@ from django.db.models import Q
 from .serializers import (
     LoginSerializer, RegisterSerializer, UserSerializer,
     BotSerializer, KnowledgeBaseFileSerializer, ConversationSerializer,
-    MessageSerializer, TelegramUserSerializer
+    MessageSerializer, TelegramUserSerializer, TemplateSerializer
 )
-from .models import Bot, KnowledgeBaseFile, Conversation, Message, TelegramUser
+from .models import (
+    Bot, KnowledgeBaseFile, Conversation, Message,
+    TelegramUser, Template
+)
 
 
 class BotViewSet(viewsets.ModelViewSet):
@@ -167,6 +170,24 @@ class TelegramUserViewSet(viewsets.ModelViewSet):
         return TelegramUser.objects.filter(
             organization=user_profile.organization
         ).order_by('-created_at')
+
+
+class TemplateViewSet(viewsets.ModelViewSet):
+    """ViewSet for Template CRUD operations"""
+    serializer_class = TemplateSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filter templates by user's organization"""
+        user_profile = self.request.user.profile
+        return Template.objects.filter(
+            organization=user_profile.organization
+        ).order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        """Set organization from user profile"""
+        user_profile = self.request.user.profile
+        serializer.save(organization=user_profile.organization)
 
 
 @api_view(['GET'])

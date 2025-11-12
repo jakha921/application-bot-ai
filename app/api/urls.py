@@ -9,7 +9,7 @@ from core.views import (
     login_view, register_view, logout_view, me_view, analytics_view,
     semantic_search_view,
     BotViewSet, KnowledgeBaseFileViewSet, ConversationViewSet,
-    MessageViewSet, TelegramUserViewSet
+    MessageViewSet, TelegramUserViewSet, TemplateViewSet
 )
 
 # DRF Router для ViewSets
@@ -24,6 +24,7 @@ router.register(r'knowledge-files', KnowledgeBaseFileViewSet, basename='knowledg
 router.register(r'conversations', ConversationViewSet, basename='conversation')
 router.register(r'messages', MessageViewSet, basename='message')
 router.register(r'users', TelegramUserViewSet, basename='user')
+router.register(r'templates', TemplateViewSet, basename='template')
 
 urlpatterns = [
     # Auth endpoints

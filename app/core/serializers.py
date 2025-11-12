@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from core.models import (
-    TelegramUser, Conversation, Message, Bot, KnowledgeBaseFile
+    TelegramUser, Conversation, Message, Bot, KnowledgeBaseFile, Template
 )
 
 
@@ -55,13 +55,6 @@ class BotSerializer(serializers.ModelSerializer):
             }
             for user in obj.assigned_users.all()
         ]
-    
-    def create(self, validated_data):
-        """Set created_by to current user"""
-        request = self.context.get('request')
-        if request and request.user and request.user.is_authenticated:
-            validated_data['created_by'] = request.user
-        return super().create(validated_data)
     
     def validate_telegram_token(self, value):
         """Validate Telegram token format"""
@@ -249,4 +242,16 @@ class RegisterSerializer(serializers.Serializer):
         )
         
         return user
+
+
+class TemplateSerializer(serializers.ModelSerializer):
+    """Serializer for Template model"""
+    
+    class Meta:
+        model = Template
+        fields = [
+            'id', 'name', 'description', 'content',
+            'category', 'is_public', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
